@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Moon Patrol</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+        }
+        #fullscreen-btn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #000;
+            color: #0f0;
+            border: 2px solid #0f0;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-family: monospace;
+            z-index: 1000;
+        }
+        canvas {
+            max-width: 100%;
+            max-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+<button id="fullscreen-btn">[ FULLSCREEN ]</button>
+<script>
+class GameScene extends Phaser.Scene {
+    constructor() {
+        super({ key: 'GameScene' });
+        this.score = 0;
+        this.lives = 3;
+        this.scrollSpeed = 0.75;
+        this.groundY = 200;
+        this.vehicleBaseY = 185;
+        this.isJumping = false;
+        this.jumpSpeed = 3;
+        this.gravity = 0.05;
+        this.vehicleY = this.vehicleBaseY;
+        this.jumpVelocity = 0;
+        this.bullets = [];
+        this.bulletSpeed = 6;
+        this.rocks = [];
+        this.explosions = [];
+        this.isDying = false;
+        this.respawnTimer = 0;
+        this.isGameOver = false;
+        this.ufos = [];
+        this.ufoProjectiles = [];
+        this.ufoSpawnTimer = 180;
+    }
+
+    init() {
+        this.score = 0;
+        this.lives = 3;
+        this.isDying = false;
+        this.isGameOver = false;
+        this.respawnTimer = 0;
+        this.vehicleY = this.vehicleBaseY;
+        this.bullets = [];
+        this.rocks = [];
+        this.explosions = [];
+        this.ufos = [];
+        this.ufoProjectiles = [];
+        this.ufoSpawnTimer = 180;
+    }
+
+    create() {
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const game = this.game.canvas;
+        
+        fullscreenBtn.onclick = () => {
+            if (!document.fullscreenElement) {
+                if (game.requestFullscreen) {
+                    game.requestFullscreen();
+                } else if (game.webkitRequestFullscreen) {
+                    game.webkitRequestFullscreen();
+                } else if (game.msRequestFullscreen) {
+                    game.msRequestFullscreen();
+                }
+                game.style.width = '100%';
+                game.style.height = '100%';
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        };
+
+        // Instructions text
+        this.add.text(200, 40, 'CONTROLS: SPACE = JUMP, X = FIRE', {
+            fill: '#00ff00',
+            fontSize: '12px',
+            fontFamily: 'monospace'
+        }).setOrigin(0.5);
+
+        this.scoreText = this.add.text(16, 16, 'SCORE: ' + this.score, {
+            fill: '#00ff00',
+            fontSize: '24px',
+            fontFamily: 'monospace'
+        });
+
+        this.livesText = this.add.text(280, 16, 'LIVES: ' + this.lives, {
+            fill: '#00ff00',
+            fontSize: '24px',
+            fontFamily: 'monospace'
+        });
+
+        this.ground = this.add.graphics();
+        this.vehicle = this.add.graphics();
+        this.bulletsGraphics = this.add.graphics();
+        this.rocksGraphics = this.add.graphics();
+        this.explosionsGraphics = this.add.graphics();
+        this.ufosGraphics = this.add.graphics();
+        this.ufoProjectilesGraphics = this.add.graphics();
+
+        this.groundSegments = [];
+        for (let i = 0; i < 41; i++) {
+            this.groundSegments.push({
+                x: i * 10,
+                y: this.groundY
+            });
+        }
+
+        // Jump button
+        this.jumpBtn = this.add.graphics();
+        this.jumpBtn.lineStyle(2, 0x00ff00);
+        this.jumpBtn.strokeCircle(100, 270, 30);
+        
+        // Fire button
+        this.fireBtn = this.add.graphics();
+        this.fireBtn.lineStyle(2, 0x00ff00);
+        this.fireBtn.strokeRect(250, 240, 60, 60);
+        
+        // Button labels
+        this.add.text(100, 270, 'JUMP', {
+            fill: '#00ff00',
+            fontSize: '12px'
+        }).setOrigin(0.5);
+        
+        this.add.text(280, 270, 'FIRE', {
+            fill: '#00ff00',
+            fontSize: '12px'
+        }).setOrigin(0.5);
+
+        // Make buttons interactive
+        this.jumpBtn.setInteractive(
+            new Phaser.Geom.Circle(100, 270, 30),
+            Phaser.Geom.Circle.Contains
+        );
+        
+        this.fireBtn.setInteractive(
+            new Phaser.Geom.Rectangle(250, 240, 60, 60),
+            Phaser.Geom.Rectangle.Contains
+        );
+
+        // Add button handlers
+        this.jumpBtn.on('pointerdown', () => {
+            if (!this.isDying && !this.isJumping) {
+                this.isJumping = true;
+                this.jumpVelocity = -this.jumpSpeed;
+            }
+        });
+        
+        this.fireBtn.on('pointerdown', () => {
+            if (!this.isDying) {
+                this.shoot();
+            }
+        });
+
+        // Keyboard controls
+        this.input.keyboard.on('keydown-SPACE', () => {
+            if (!this.isDying && !this.isJumping) {
+                this.isJumping = true;
+                this.jumpVelocity = -this.jumpSpeed;
+            }
+        });
+
+        this.input.keyboard.on('keydown-X', () => {
+            if (!this.isDying) {
+                this.shoot();
+            }
+        });
+    }
+    shoot() {
+        this.bullets.push({
+            x: 128,
+            y: this.vehicleY - 4,
+            vx: this.bulletSpeed,
+            vy: 0,
+            type: 'front'
+        });
+
+        this.bullets.push({
+            x: 100,
+            y: this.vehicleY - 16,
+            vx: 0,
+            vy: -this.bulletSpeed,
+            type: 'top'
+        });
+    }
+
+    addUfo() {
+        this.ufos.push({
+            x: 420,
+            y: 80 + Math.random() * 60,
+            width: 30,
+            height: 15,
+            startY: 80 + Math.random() * 60,
+            angle: 0,
+            shotTimer: 60 + Math.random() * 60
+        });
+    }
+
+    ufoShoot(ufo) {
+        this.ufoProjectiles.push({
+            x: ufo.x,
+            y: ufo.y + ufo.height/2,
+            vy: 4,
+            width: 2,
+            height: 6
+        });
+    }
+
+    addExplosion(x, y, color = 0x00ff00, scale = 1.5) {
+        this.explosions.push({
+            x: x,
+            y: y,
+            frame: 0,
+            maxFrames: 20,
+            scale: scale,
+            color: color,
+            alpha: 1.0
+        });
+    }
+
+    drawVehicle(x, y) {
+        if (!this.isDying) {
+            this.vehicle.clear();
+            this.vehicle.lineStyle(2, 0x00ff00);
+            
+            // Draw filled rectangles by using fillStyle and fillRect
+            this.vehicle.fillStyle(0x00ff00, 1);
+            
+            // Main body
+            this.vehicle.fillRect(x - 20, y - 8, 40, 8);
+            // Top turret
+            this.vehicle.fillRect(x - 6, y - 16, 12, 8);
+            // Front cannon
+            this.vehicle.fillRect(x + 20, y - 6, 8, 4);
+
+            // Wheels (outline only)
+            this.vehicle.lineStyle(2, 0x00ff00);
+            this.vehicle.strokeCircle(x - 12, y + 4, 6);
+            this.vehicle.strokeCircle(x + 12, y + 4, 6);
+        }
+    }
+
+    drawBullets() {
+        this.bulletsGraphics.clear();
+        this.bulletsGraphics.lineStyle(2, 0x00ff00);
+
+        this.bullets.forEach(bullet => {
+            if (bullet.type === 'front') {
+                this.bulletsGraphics.strokeRect(bullet.x, bullet.y, 8, 2);
+            } else {
+                this.bulletsGraphics.strokeRect(bullet.x - 1, bullet.y, 2, 8);
+            }
+        });
+    }
+
+    drawUfos() {
+        this.ufosGraphics.clear();
+        this.ufosGraphics.lineStyle(2, 0xff0000);
+
+        this.ufos.forEach(ufo => {
+            // UFO body
+            this.ufosGraphics.beginPath();
+            this.ufosGraphics.moveTo(ufo.x - ufo.width/2, ufo.y);
+            this.ufosGraphics.lineTo(ufo.x - ufo.width/4, ufo.y - ufo.height/2);
+            this.ufosGraphics.lineTo(ufo.x + ufo.width/4, ufo.y - ufo.height/2);
+            this.ufosGraphics.lineTo(ufo.x + ufo.width/2, ufo.y);
+            this.ufosGraphics.lineTo(ufo.x + ufo.width/4, ufo.y + ufo.height/2);
+            this.ufosGraphics.lineTo(ufo.x - ufo.width/4, ufo.y + ufo.height/2);
+            this.ufosGraphics.closePath();
+            this.ufosGraphics.strokePath();
+
+            // UFO dome
+            this.ufosGraphics.beginPath();
+            this.ufosGraphics.arc(ufo.x, ufo.y - ufo.height/4, ufo.width/4, 0, Math.PI, true);
+            this.ufosGraphics.strokePath();
+        });
+    }
+
+    drawUfoProjectiles() {
+        this.ufoProjectilesGraphics.clear();
+        this.ufoProjectilesGraphics.lineStyle(2, 0xff0000);
+
+        this.ufoProjectiles.forEach(proj => {
+            this.ufoProjectilesGraphics.strokeRect(proj.x - 1, proj.y, proj.width, proj.height);
+        });
+    }
+
+    drawRocks() {
+        this.rocksGraphics.clear();
+        this.rocksGraphics.lineStyle(2, 0x00ff00);
+
+        this.rocks.forEach(rock => {
+            this.rocksGraphics.beginPath();
+            
+            // Start at bottom left
+            this.rocksGraphics.moveTo(rock.x, rock.y + rock.height);
+            
+            // Generate 4-6 random points for top of rock
+            const points = [];
+            const numPoints = 4 + Math.floor(Math.random() * 3);
+            for(let i = 0; i < numPoints; i++) {
+                points.push({
+                    x: rock.x + (rock.width * (i/(numPoints-1))),
+                    y: rock.y + (Math.random() * rock.height/2)
+                });
+            }
+            
+            // Draw to all points
+            points.forEach(point => {
+                this.rocksGraphics.lineTo(point.x, point.y);
+            });
+            
+            // Complete the shape
+            this.rocksGraphics.lineTo(rock.x + rock.width, rock.y + rock.height);
+            this.rocksGraphics.closePath();
+            this.rocksGraphics.strokePath();
+
+            // Add some internal lines for detail
+            for(let i = 1; i < points.length - 1; i++) {
+                this.rocksGraphics.beginPath();
+                this.rocksGraphics.moveTo(points[i].x, points[i].y);
+                this.rocksGraphics.lineTo(rock.x + (rock.width/2), rock.y + rock.height);
+                this.rocksGraphics.strokePath();
+            }
+        });
+    }
+
+    drawExplosions() {
+        this.explosionsGraphics.clear();
+
+        this.explosions.forEach(explosion => {
+            const alpha = 1 - (explosion.frame / explosion.maxFrames);
+            this.explosionsGraphics.lineStyle(2, explosion.color || 0x00ff00, alpha);
+            const size = 20 * (1 - explosion.frame / explosion.maxFrames) * explosion.scale;
+            const segments = 8;
+            const angleStep = (Math.PI * 2) / segments;
+
+            for (let i = 0; i < segments; i++) {
+                const angle = i * angleStep;
+                const x1 = explosion.x + Math.cos(angle) * size;
+                const y1 = explosion.y + Math.sin(angle) * size;
+                const x2 = explosion.x + Math.cos(angle + angleStep/2) * (size * 0.5);
+                const y2 = explosion.y + Math.sin(angle + angleStep/2) * (size * 0.5);
+                
+                this.explosionsGraphics.beginPath();
+                this.explosionsGraphics.moveTo(x1, y1);
+                this.explosionsGraphics.lineTo(x2, y2);
+                this.explosionsGraphics.strokePath();
+            }
+        });
+    }
+
+    drawGround() {
+        this.ground.clear();
+        this.ground.lineStyle(2, 0x00ff00);
+        
+        this.ground.beginPath();
+        this.ground.moveTo(this.groundSegments[0].x, this.groundSegments[0].y);
+        
+        for (let i = 1; i < this.groundSegments.length; i++) {
+            this.ground.lineTo(this.groundSegments[i].x, this.groundSegments[i].y);
+        }
+        
+        this.ground.strokePath();
+    }
+
+    addRock() {
+        if (Math.random() < 0.3 && this.rocks.length < 3) {
+            this.rocks.push({
+                x: 420,
+                y: this.groundY - 25,
+                width: 25,
+                height: 25
+            });
+        }
+    }
+
+    gameOver() {
+        this.isGameOver = true;
+        
+        this.add.text(200, 150, 'GAME OVER', {
+            fill: '#00ff00',
+            fontSize: '32px',
+            fontFamily: 'monospace'
+        }).setOrigin(0.5);
+
+        const restartBtn = this.add.graphics();
+        restartBtn.lineStyle(2, 0x00ff00);
+        restartBtn.strokeRect(150, 220, 100, 40);
+
+        this.add.text(200, 240, 'RESTART', {
+            fill: '#00ff00',
+            fontSize: '20px'
+        }).setOrigin(0.5);
+
+        restartBtn.setInteractive(
+            new Phaser.Geom.Rectangle(150, 220, 100, 40),
+            Phaser.Geom.Rectangle.Contains
+        );
+
+        restartBtn.on('pointerdown', () => {
+            this.init();
+            this.scene.restart();
+        });
+    }
+
+    checkBuggyCollision(x1, y1, w1, h1, x2, y2, w2, h2) {
+        return Math.abs((x1 + w1/2) - (x2 + w2/2)) < (w1 + w2)/2 &&
+               Math.abs((y1 + h1/2) - (y2 + h2/2)) < (h1 + h2)/2;
+    }
+
+    update() {
+        if (this.isGameOver) return;
+
+        if (this.isDying) {
+            if (this.respawnTimer > 0) {
+                this.respawnTimer--;
+                if (this.respawnTimer <= 0) {
+                    this.isDying = false;
+                    this.vehicleY = this.vehicleBaseY;
+                    this.isJumping = false;
+                    this.jumpVelocity = 0;
+                }
+            }
+        } else {
+            if (this.isJumping) {
+                this.jumpVelocity += this.gravity;
+                this.vehicleY += this.jumpVelocity;
+
+                if (this.vehicleY >= this.vehicleBaseY) {
+                    this.vehicleY = this.vehicleBaseY;
+                    this.isJumping = false;
+                    this.jumpVelocity = 0;
+                }
+            }
+
+            // Check UFO collision with buggy
+            this.ufos.forEach((ufo, i) => {
+                if (this.checkBuggyCollision(
+                    100 - 20, this.vehicleY - 8, 40, 16,
+                    ufo.x - ufo.width/2, ufo.y - ufo.height/2, ufo.width, ufo.height
+                )) {
+                    this.addExplosion(ufo.x, ufo.y, 0xff0000);
+                    this.addExplosion(100, this.vehicleY);
+                    this.ufos.splice(i, 1);
+                    this.lives--;
+                    this.livesText.setText('LIVES: ' + this.lives);
+                    
+                    if (this.lives <= 0) {
+                        this.gameOver();
+                    } else {
+                        this.isDying = true;
+                        this.respawnTimer = 100;
+                    }
+                }
+            });
+        }
+
+        // Update UFOs
+        this.ufoSpawnTimer--;
+        if (this.ufoSpawnTimer <= 0) {
+            this.addUfo();
+            this.ufoSpawnTimer = 180;
+        }
+
+        // Update UFO positions and shooting
+        for (let i = this.ufos.length - 1; i >= 0; i--) {
+            const ufo = this.ufos[i];
+            ufo.x -= 1.5;
+            ufo.angle += 0.05;
+            ufo.y = ufo.startY + Math.sin(ufo.angle) * 30;
+
+            ufo.shotTimer--;
+            if (ufo.shotTimer <= 0) {
+                this.ufoShoot(ufo);
+                ufo.shotTimer = 120 + Math.random() * 60;
+            }
+
+            if (ufo.x < -30) {
+                this.ufos.splice(i, 1);
+            }
+        }
+
+        // Update bullets and check collisions
+        for (let j = this.bullets.length - 1; j >= 0; j--) {
+            const bullet = this.bullets[j];
+            bullet.x += bullet.vx;
+            bullet.y += bullet.vy;
+
+            // Check rocks first
+            for (let k = this.rocks.length - 1; k >= 0; k--) {
+                const rock = this.rocks[k];
+                if (bullet.x >= rock.x && bullet.x <= rock.x + rock.width &&
+                    bullet.y >= rock.y && bullet.y <= rock.y + rock.height) {
+                    this.addExplosion(rock.x + rock.width/2, rock.y + rock.height/2);
+                    this.rocks.splice(k, 1);
+                    this.bullets.splice(j, 1);
+                    this.score += 100;
+                    break;
+                }
+            }
+
+            // Then check UFOs
+            for (let i = this.ufos.length - 1; i >= 0; i--) {
+                const ufo = this.ufos[i];
+                if (bullet.x >= ufo.x - ufo.width/2 && 
+                    bullet.x <= ufo.x + ufo.width/2 &&
+                    bullet.y >= ufo.y - ufo.height/2 && 
+                    bullet.y <= ufo.y + ufo.height/2) {
+                    this.addExplosion(ufo.x, ufo.y, 0xff0000);
+                    this.ufos.splice(i, 1);
+                    this.bullets.splice(j, 1);
+                    this.score += 200;
+                    break;
+                }
+            }
+
+            // Remove off-screen bullets
+            if (bullet.x > 400 || bullet.x < 0 || bullet.y > 300 || bullet.y < 0) {
+                this.bullets.splice(j, 1);
+            }
+        }
+
+        // Update UFO projectiles
+        for (let i = this.ufoProjectiles.length - 1; i >= 0; i--) {
+            const proj = this.ufoProjectiles[i];
+            proj.y += proj.vy;
+
+            if (!this.isDying &&
+                Math.abs(100 - proj.x) < 20 &&
+                Math.abs(this.vehicleY - proj.y) < 20) {
+                this.addExplosion(100, this.vehicleY, 0xff0000);
+                this.ufoProjectiles.splice(i, 1);
+                this.lives--;
+                this.livesText.setText('LIVES: ' + this.lives);
+                
+                if (this.lives <= 0) {
+                    this.gameOver();
+                } else {
+                    this.isDying = true;
+                    this.respawnTimer = 100;
+                }
+                continue;
+            }
+
+            if (proj.y > 300) {
+                this.ufoProjectiles.splice(i, 1);
+            }
+        }
+
+        // Update rocks and check collisions
+        for (let i = this.rocks.length - 1; i >= 0; i--) {
+            const rock = this.rocks[i];
+            rock.x -= this.scrollSpeed;
+
+            if (!this.isDying && 
+                this.checkBuggyCollision(
+                    100 - 20, this.vehicleY - 8, 40, 16,
+                    rock.x, rock.y, rock.width, rock.height
+                )) {
+                this.addExplosion(rock.x + rock.width/2, rock.y + rock.height/2);
+                this.addExplosion(100, this.vehicleY);
+                this.rocks.splice(i, 1);
+                this.lives--;
+                this.livesText.setText('LIVES: ' + this.lives);
+                
+                if (this.lives <= 0) {
+                    this.gameOver();
+                } else {
+                    this.isDying = true;
+                    this.respawnTimer = 100;
+                }
+                continue;
+            }
+
+            if (rock.x < -20) {
+                this.rocks.splice(i, 1);
+            }
+        }
+
+        if (Math.random() < 0.02) {
+            this.addRock();
+        }
+
+        // Scroll ground
+        for (let i = 0; i < this.groundSegments.length; i++) {
+            this.groundSegments[i].x -= this.scrollSpeed;
+        }
+
+        if (this.groundSegments[0].x <= -10) {
+            this.groundSegments.shift();
+            this.groundSegments.push({
+                x: this.groundSegments[this.groundSegments.length - 1].x + 10,
+                y: this.groundY
+            });
+        }
+
+        // Update explosions
+        for (let i = this.explosions.length - 1; i >= 0; i--) {
+            this.explosions[i].frame++;
+            if (this.explosions[i].frame >= this.explosions[i].maxFrames) {
+                this.explosions.splice(i, 1);
+            }
+        }
+
+        // Draw everything
+        this.drawGround();
+        this.drawRocks();
+        this.drawVehicle(100, this.vehicleY);
+        this.drawBullets();
+        this.drawUfos();
+        this.drawUfoProjectiles();
+        this.drawExplosions();
+
+        // Update score
+        this.scoreText.setText('SCORE: ' + this.score);
+    }
+}
+
+const config = {
+    type: Phaser.AUTO,
+    width: 400,
+    height: 300,
+    backgroundColor: '#000000',
+    scene: GameScene,
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    }
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>
