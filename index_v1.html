@@ -18,9 +18,9 @@
             position: fixed;
             top: 10px;
             right: 10px;
-            background: #333;
-            color: #00de47;
-            border: 2px solid #00de47;
+            background: #000;
+            color: #0f0;
+            border: 2px solid #0f0;
             padding: 5px 10px;
             cursor: pointer;
             font-family: monospace;
@@ -42,7 +42,7 @@ class GameScene extends Phaser.Scene {
         this.lives = 3;
         this.scrollSpeed = 0.75;
         this.groundY = 200;
-        this.vehicleBaseY = 188;
+        this.vehicleBaseY = 185;
         this.isJumping = false;
         this.jumpSpeed = 3;
         this.gravity = 0.05;
@@ -58,14 +58,6 @@ class GameScene extends Phaser.Scene {
         this.ufos = [];
         this.ufoProjectiles = [];
         this.ufoSpawnTimer = 180;
-        
-        // New properties for terrain features
-        this.groundHoles = [];
-        this.mountainPoints = [];
-        this.cityElements = [];
-        this.groundColor = 0xff9747; // Orange ground color
-        this.backgroundColor1 = 0x000066; // Dark blue sky
-        this.backgroundColor2 = 0x4488ff; // Light blue sky
     }
 
     init() {
@@ -81,9 +73,6 @@ class GameScene extends Phaser.Scene {
         this.ufos = [];
         this.ufoProjectiles = [];
         this.ufoSpawnTimer = 180;
-        this.groundHoles = [];
-        this.generateMountainPoints();
-        this.generateCityElements();
     }
 
     create() {
@@ -94,36 +83,43 @@ class GameScene extends Phaser.Scene {
             if (!document.fullscreenElement) {
                 if (game.requestFullscreen) {
                     game.requestFullscreen();
+                } else if (game.webkitRequestFullscreen) {
+                    game.webkitRequestFullscreen();
+                } else if (game.msRequestFullscreen) {
+                    game.msRequestFullscreen();
                 }
+                game.style.width = '100%';
+                game.style.height = '100%';
             } else {
                 if (document.exitFullscreen) {
                     document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
                 }
             }
         };
 
         // Instructions text
-        this.add.text(200, 35, '[SPACE = JUMP, ENTER = FIRE]', {
-            fill: '#00de47',
+        this.add.text(200, 40, 'CONTROLS: SPACE = JUMP, X = FIRE', {
+            fill: '#00ff00',
             fontSize: '12px',
             fontFamily: 'monospace'
         }).setOrigin(0.5);
 
-        this.scoreText = this.add.text(16, 8, 'SCORE: ' + this.score, {
-            fill: '#00de47',
-            fontSize: '22px',
+        this.scoreText = this.add.text(16, 16, 'SCORE: ' + this.score, {
+            fill: '#00ff00',
+            fontSize: '24px',
             fontFamily: 'monospace'
         });
 
-        this.livesText = this.add.text(280, 8, 'LIVES: ' + this.lives, {
-            fill: '#00de47',
-            fontSize: '22px',
+        this.livesText = this.add.text(280, 16, 'LIVES: ' + this.lives, {
+            fill: '#00ff00',
+            fontSize: '24px',
             fontFamily: 'monospace'
         });
 
-        // Initialize graphics objects
-        this.backgroundMountains = this.add.graphics();
-        this.backgroundCity = this.add.graphics();
         this.ground = this.add.graphics();
         this.vehicle = this.add.graphics();
         this.bulletsGraphics = this.add.graphics();
@@ -140,32 +136,24 @@ class GameScene extends Phaser.Scene {
             });
         }
 
-        // Mobile controls
-        this.setupMobileControls();
-        
-        // Keyboard controls
-        this.setupKeyboardControls();
-    }
-
-    setupMobileControls() {
         // Jump button
         this.jumpBtn = this.add.graphics();
-        this.jumpBtn.lineStyle(2, 0x00de47);
+        this.jumpBtn.lineStyle(2, 0x00ff00);
         this.jumpBtn.strokeCircle(100, 270, 30);
         
         // Fire button
         this.fireBtn = this.add.graphics();
-        this.fireBtn.lineStyle(2, 0x00de47);
+        this.fireBtn.lineStyle(2, 0x00ff00);
         this.fireBtn.strokeRect(250, 240, 60, 60);
         
         // Button labels
         this.add.text(100, 270, 'JUMP', {
-            fill: '#ffde47',
+            fill: '#00ff00',
             fontSize: '12px'
         }).setOrigin(0.5);
         
         this.add.text(280, 270, 'FIRE', {
-            fill: '#ffde47',
+            fill: '#00ff00',
             fontSize: '12px'
         }).setOrigin(0.5);
 
@@ -180,6 +168,7 @@ class GameScene extends Phaser.Scene {
             Phaser.Geom.Rectangle.Contains
         );
 
+        // Add button handlers
         this.jumpBtn.on('pointerdown', () => {
             if (!this.isDying && !this.isJumping) {
                 this.isJumping = true;
@@ -192,9 +181,8 @@ class GameScene extends Phaser.Scene {
                 this.shoot();
             }
         });
-    }
 
-    setupKeyboardControls() {
+        // Keyboard controls
         this.input.keyboard.on('keydown-SPACE', () => {
             if (!this.isDying && !this.isJumping) {
                 this.isJumping = true;
@@ -202,239 +190,12 @@ class GameScene extends Phaser.Scene {
             }
         });
 
-        this.input.keyboard.on('keydown-ENTER', () => {
+        this.input.keyboard.on('keydown-X', () => {
             if (!this.isDying) {
                 this.shoot();
             }
         });
     }
-    generateMountainPoints() {
-        this.mountainPoints = [];
-        let x = 0;
-        while (x < 800) {
-            const height = 50 + Math.random() * 50;
-            this.mountainPoints.push({
-                x: x,
-                y: 150 - height
-            });
-            x += 20 + Math.random() * 30;
-        }
-    }
-
-    generateCityElements() {
-        this.cityElements = [];
-        let x = 0;
-        while (x < 800) {
-            const height = 30 + Math.random() * 40;
-            const width = 15 + Math.random() * 20;
-            this.cityElements.push({
-                x: x,
-                y: this.groundY - height,
-                width: width,
-                height: height,
-                type: Math.floor(Math.random() * 3)
-            });
-            x += width + 10 + Math.random() * 20;
-        }
-    }
-
-    drawBackground() {
-        // Draw gradient sky
-        /*
-        const gradient = this.add.graphics();
-        gradient.clear();
-        for (let y = 0; y < 150; y++) {
-            const ratio = y / 150;
-            const color = Phaser.Display.Color.Interpolate.ColorWithColor(
-                Phaser.Display.Color.ValueToColor(this.backgroundColor1),
-                Phaser.Display.Color.ValueToColor(this.backgroundColor2),
-                150,
-                y
-            );
-            gradient.lineStyle(1, color, 1);
-            gradient.lineBetween(0, y, 400, y);
-        }
-        */
-        // Draw mountains
-        this.backgroundMountains.clear();
-        this.backgroundMountains.lineStyle(2, 0x0000de);
-        this.backgroundMountains.beginPath();
-        this.mountainPoints.forEach((point, i) => {
-            if (i === 0) {
-                this.backgroundMountains.moveTo(point.x, 300);
-            }
-            this.backgroundMountains.lineTo(point.x, point.y);
-            if (i === this.mountainPoints.length - 1) {
-                this.backgroundMountains.lineTo(point.x, 300);
-            }
-        });
-        this.backgroundMountains.closePath();
-        this.backgroundMountains.fillStyle(0x009797, 1);
-        this.backgroundMountains.fill();
-        this.backgroundMountains.strokePath();
-
-        // Draw city
-        this.backgroundCity.clear();
-        this.backgroundCity.lineStyle(2, 0xffde47);
-        this.cityElements.forEach(building => {
-            switch(building.type) {
-                case 0:
-                    this.drawBuilding(building);
-                    break;
-                case 1:
-                    this.drawDomedBuilding(building);
-                    break;
-                case 2:
-                    this.drawAntennaBuilding(building);
-                    break;
-            }
-        });
-    }
-
-    drawBuilding(building) {
-        this.backgroundCity.strokeRect(
-            building.x, 
-            building.y,
-            building.width,
-            building.height
-        );
-        this.backgroundCity.fillStyle(0x00de47, 1);
-        this.backgroundCity.fillRect(building.x,building.y, building.width, building.height);
-        this.backgroundCity.fill();
-    }
-
-    drawDomedBuilding(building) {
-        this.backgroundCity.beginPath();
-        this.backgroundCity.moveTo(building.x, building.y + building.height);
-        this.backgroundCity.lineTo(building.x, building.y + building.height/2);
-        this.backgroundCity.arc(
-            building.x + building.width/2,
-            building.y + building.height/2,
-            building.width/2,
-            Math.PI,
-            0,
-            true
-        );
-        this.backgroundCity.lineTo(
-            building.x + building.width,  
-            building.y + building.height
-        );
-        this.backgroundCity.strokePath();
-        this.backgroundCity.fillStyle(0x00de47, 1);
-        this.backgroundCity.fill();
-    }
-
-    drawAntennaBuilding(building) {
-        this.drawBuilding(building);
-        const antennaHeight = building.height * 0.4;
-        this.backgroundCity.beginPath();
-        this.backgroundCity.moveTo(
-            building.x + building.width/2,
-            building.y
-        );
-        this.backgroundCity.lineTo(
-            building.x + building.width/2,
-            building.y - antennaHeight
-        );
-        this.backgroundCity.strokePath();
-        this.backgroundCity.fillStyle(0x00de47, 1);
-        this.backgroundCity.fill();
-    }
-
-    drawGround() {
-        this.ground.clear();
-        this.ground.lineStyle(3, this.groundColor);
-        
-        this.ground.beginPath();
-        let firstPoint = true;
-        this.groundSegments.forEach((segment, i) => {
-            if (this.groundHoles.some(hole => 
-                Math.abs(hole.x - segment.x) < hole.width/2
-            )) {
-                if (!firstPoint) {
-                    this.ground.lineTo(segment.x, segment.y + 20);
-                }
-            } else {
-                if (firstPoint) {
-                    this.ground.moveTo(segment.x, segment.y);
-                    firstPoint = false;
-                } else {
-                    this.ground.lineTo(segment.x, segment.y);
-                }
-            }
-        });
-        this.ground.strokePath();
-    }
-
- 
-    addUfo() {
-        this.ufos.push({
-            x: 420,
-            y: 80 + Math.random() * 60,
-            width: 30,
-            height: 15,
-            startY: 80 + Math.random() * 60,
-            angle: 0,
-            shotTimer: 60 + Math.random() * 60
-        });
-    }
-
-    ufoShoot(ufo) {
-        this.ufoProjectiles.push({
-            x: ufo.x,
-            y: ufo.y + ufo.height/2,
-            vy: 4,
-            width: 1,
-            height: 6
-        });
-    }
-
-    addExplosion(x, y, color = 0xae3628, scale = 1.5) {
-        this.explosions.push({
-            x: x,
-            y: y,
-            frame: 0,
-            maxFrames: 20,
-            scale: scale,
-            color: color,
-            alpha: 1.0
-        });
-    }
-
-    drawVehicle(x, y) {
-        if (!this.isDying) {
-            this.vehicle.clear();
-            this.vehicle.lineStyle(2, 0xde00de);
-            
-            // Main body
-            this.vehicle.fillStyle(0xde00de, 1);
-            this.vehicle.fillRect(x - 18, y - 6, 40, 8);
-            
-            // Top turret
-            this.vehicle.fillStyle(0x00deff, .8);
-            this.vehicle.fillRect(x - 4, y - 14, 12, 8);
-            this.vehicle.strokeRect(x - 5, y - 14, 13, 9)
-            
-            // Front cannon
-            this.vehicle.fillStyle(0xde00de, 1);
-            this.vehicle.fillRect(x + 20, y - 6, 8, 4);
-            
-            // Wheels
-            this.vehicle.lineStyle(2, 0x111111);
-            this.vehicle.strokeCircle(x - 14, y + 4, 6);
-            this.vehicle.fillStyle(0x222222, 1);
-            this.vehicle.fill();
-
-            this.vehicle.strokeCircle(x, y + 5, 5);
-            this.vehicle.fillStyle(0x222222, 1);
-            this.vehicle.fill();
-
-            this.vehicle.strokeCircle(x + 15, y + 4, 6);
-            this.vehicle.fillStyle(0x222222, 1);
-            this.vehicle.fill();
-        }
-    }
-
     shoot() {
         this.bullets.push({
             x: 128,
@@ -453,9 +214,65 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    addUfo() {
+        this.ufos.push({
+            x: 420,
+            y: 80 + Math.random() * 60,
+            width: 30,
+            height: 15,
+            startY: 80 + Math.random() * 60,
+            angle: 0,
+            shotTimer: 60 + Math.random() * 60
+        });
+    }
+
+    ufoShoot(ufo) {
+        this.ufoProjectiles.push({
+            x: ufo.x,
+            y: ufo.y + ufo.height/2,
+            vy: 4,
+            width: 2,
+            height: 6
+        });
+    }
+
+    addExplosion(x, y, color = 0x00ff00, scale = 1.5) {
+        this.explosions.push({
+            x: x,
+            y: y,
+            frame: 0,
+            maxFrames: 20,
+            scale: scale,
+            color: color,
+            alpha: 1.0
+        });
+    }
+
+    drawVehicle(x, y) {
+        if (!this.isDying) {
+            this.vehicle.clear();
+            this.vehicle.lineStyle(2, 0x00ff00);
+            
+            // Draw filled rectangles by using fillStyle and fillRect
+            this.vehicle.fillStyle(0x00ff00, 1);
+            
+            // Main body
+            this.vehicle.fillRect(x - 20, y - 8, 40, 8);
+            // Top turret
+            this.vehicle.fillRect(x - 6, y - 16, 12, 8);
+            // Front cannon
+            this.vehicle.fillRect(x + 20, y - 6, 8, 4);
+
+            // Wheels (outline only)
+            this.vehicle.lineStyle(2, 0x00ff00);
+            this.vehicle.strokeCircle(x - 12, y + 4, 6);
+            this.vehicle.strokeCircle(x + 12, y + 4, 6);
+        }
+    }
+
     drawBullets() {
         this.bulletsGraphics.clear();
-        this.bulletsGraphics.lineStyle(2, 0xaaaaaa);
+        this.bulletsGraphics.lineStyle(2, 0x00ff00);
 
         this.bullets.forEach(bullet => {
             if (bullet.type === 'front') {
@@ -468,8 +285,8 @@ class GameScene extends Phaser.Scene {
 
     drawUfos() {
         this.ufosGraphics.clear();
-        this.ufosGraphics.lineStyle(2, 0xaaaaaa);
-        
+        this.ufosGraphics.lineStyle(2, 0xff0000);
+
         this.ufos.forEach(ufo => {
             // UFO body
             this.ufosGraphics.beginPath();
@@ -480,15 +297,11 @@ class GameScene extends Phaser.Scene {
             this.ufosGraphics.lineTo(ufo.x + ufo.width/4, ufo.y + ufo.height/2);
             this.ufosGraphics.lineTo(ufo.x - ufo.width/4, ufo.y + ufo.height/2);
             this.ufosGraphics.closePath();
-            this.ufosGraphics.fillStyle(0x999999, 1);
-            this.ufosGraphics.fill();
             this.ufosGraphics.strokePath();
 
             // UFO dome
             this.ufosGraphics.beginPath();
             this.ufosGraphics.arc(ufo.x, ufo.y - ufo.height/4, ufo.width/4, 0, Math.PI, true);
-            this.ufosGraphics.fillStyle(0xffde47, 1);
-            this.ufosGraphics.fill();
             this.ufosGraphics.strokePath();
         });
     }
@@ -496,7 +309,7 @@ class GameScene extends Phaser.Scene {
     drawUfoProjectiles() {
         this.ufoProjectilesGraphics.clear();
         this.ufoProjectilesGraphics.lineStyle(2, 0xff0000);
-        
+
         this.ufoProjectiles.forEach(proj => {
             this.ufoProjectilesGraphics.strokeRect(proj.x - 1, proj.y, proj.width, proj.height);
         });
@@ -504,8 +317,8 @@ class GameScene extends Phaser.Scene {
 
     drawRocks() {
         this.rocksGraphics.clear();
-        this.rocksGraphics.lineStyle(2, 0x898074);
-        
+        this.rocksGraphics.lineStyle(2, 0x00ff00);
+
         this.rocks.forEach(rock => {
             // Use the rock's x position to generate consistent points
             // by using it as a seed for the random points
@@ -532,8 +345,6 @@ class GameScene extends Phaser.Scene {
             
             this.rocksGraphics.closePath();
             this.rocksGraphics.strokePath();
-            this.rocksGraphics.fillStyle(0xaebec9, 1);
-            this.rocksGraphics.fill();
 
             // Add internal lines for detail
             this.rocksGraphics.beginPath();
@@ -545,7 +356,6 @@ class GameScene extends Phaser.Scene {
             this.rocksGraphics.moveTo(points[2].x, points[2].y);
             this.rocksGraphics.lineTo(points[2].x, points[4].y);
             this.rocksGraphics.strokePath();
-            
         });
     }
 
@@ -554,7 +364,7 @@ class GameScene extends Phaser.Scene {
 
         this.explosions.forEach(explosion => {
             const alpha = 1 - (explosion.frame / explosion.maxFrames);
-            this.explosionsGraphics.lineStyle(2, explosion.color || 0xae3628, alpha);
+            this.explosionsGraphics.lineStyle(2, explosion.color || 0x00ff00, alpha);
             const size = 20 * (1 - explosion.frame / explosion.maxFrames) * explosion.scale;
             const segments = 8;
             const angleStep = (Math.PI * 2) / segments;
@@ -574,11 +384,25 @@ class GameScene extends Phaser.Scene {
         });
     }
 
+    drawGround() {
+        this.ground.clear();
+        this.ground.lineStyle(2, 0x00ff00);
+        
+        this.ground.beginPath();
+        this.ground.moveTo(this.groundSegments[0].x, this.groundSegments[0].y);
+        
+        for (let i = 1; i < this.groundSegments.length; i++) {
+            this.ground.lineTo(this.groundSegments[i].x, this.groundSegments[i].y);
+        }
+        
+        this.ground.strokePath();
+    }
+
     addRock() {
         if (Math.random() < 0.3 && this.rocks.length < 3) {
             this.rocks.push({
                 x: 420,
-                y: this.groundY - 24,
+                y: this.groundY - 25,
                 width: 25,
                 height: 25
             });
@@ -589,18 +413,18 @@ class GameScene extends Phaser.Scene {
         this.isGameOver = true;
         
         this.add.text(200, 150, 'GAME OVER', {
-            fill: '#000000',
+            fill: '#00ff00',
             fontSize: '32px',
             fontFamily: 'monospace'
         }).setOrigin(0.5);
 
         const restartBtn = this.add.graphics();
-        restartBtn.lineStyle(2, 0x000000);
-        restartBtn.strokeRect(140, 220, 100, 40);
+        restartBtn.lineStyle(2, 0x00ff00);
+        restartBtn.strokeRect(150, 220, 100, 40);
 
-        this.add.text(190, 240, 'RESTART', {
-            fill: '#000000',
-            fontSize: '16px'
+        this.add.text(200, 240, 'RESTART', {
+            fill: '#00ff00',
+            fontSize: '20px'
         }).setOrigin(0.5);
 
         restartBtn.setInteractive(
@@ -814,7 +638,6 @@ class GameScene extends Phaser.Scene {
         }
 
         // Draw everything
-        this.drawBackground();
         this.drawGround();
         this.drawRocks();
         this.drawVehicle(100, this.vehicleY);
@@ -827,6 +650,7 @@ class GameScene extends Phaser.Scene {
         this.scoreText.setText('SCORE: ' + this.score);
     }
 }
+
 const config = {
     type: Phaser.AUTO,
     width: 400,
@@ -842,4 +666,4 @@ const config = {
 new Phaser.Game(config);
 </script>
 </body>
-</html>                
+</html>
