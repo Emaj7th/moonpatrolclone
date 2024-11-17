@@ -48,6 +48,8 @@ class GameScene extends Phaser.Scene {
         this.gravity = 0.05;
         this.vehicleY = this.vehicleBaseY;
         this.jumpVelocity = 0;
+        this.wheelRotation = 0;
+        this.vehicleJiggle = 0;
         this.bullets = [];
         this.bulletSpeed = 6;
         this.rocks = [];
@@ -82,6 +84,14 @@ class GameScene extends Phaser.Scene {
         this.ufoProjectiles = [];
         this.ufoSpawnTimer = 180;
         this.groundHoles = [];
+        setInterval(() => {
+            if (Math.random() < 0.03) { // Reduced from 0.1 to 0.03 (3% chance)
+                this.groundHoles.push({
+                    x: 420,
+                    width: 20 + Math.random() * 20
+                });
+            }
+        }, 1000);  // Could also increase this interval if needed, e.g. to 2000     
         this.generateMountainPoints();
         this.generateCityElements();
     }
@@ -136,7 +146,7 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < 41; i++) {
             this.groundSegments.push({
                 x: i * 10,
-                y: this.groundY
+                y: this.groundY + Math.sin(i * 0.5) * 3
             });
         }
 
@@ -345,24 +355,36 @@ class GameScene extends Phaser.Scene {
         this.ground.clear();
         this.ground.lineStyle(3, this.groundColor);
         
+        // Start the fill path
         this.ground.beginPath();
+        
+        // Move to bottom-left corner of screen first
+        this.ground.moveTo(0, 300);
+        
         let firstPoint = true;
         this.groundSegments.forEach((segment, i) => {
-            if (this.groundHoles.some(hole => 
+            const isHole = this.groundHoles.some(hole => 
                 Math.abs(hole.x - segment.x) < hole.width/2
-            )) {
-                if (!firstPoint) {
-                    this.ground.lineTo(segment.x, segment.y + 20);
-                }
+            );
+            
+            if (isHole) {
+                // For holes, we need to draw down to create the hole shape
+                const holeDepth = segment.y + 20;
+                this.ground.lineTo(segment.x, holeDepth);
             } else {
-                if (firstPoint) {
-                    this.ground.moveTo(segment.x, segment.y);
-                    firstPoint = false;
-                } else {
-                    this.ground.lineTo(segment.x, segment.y);
-                }
+                const lumpY = segment.y + Math.sin(i * 0.5) * 3;
+                this.ground.lineTo(segment.x, lumpY);
             }
         });
+        
+        // Complete the path by drawing to bottom-right corner
+        this.ground.lineTo(400, 300);
+        
+        // Fill the path
+        this.ground.fillStyle(this.groundColor, 1);
+        this.ground.fill();
+        
+        // Stroke the path
         this.ground.strokePath();
     }
 
@@ -402,38 +424,65 @@ class GameScene extends Phaser.Scene {
     }
 
     drawVehicle(x, y) {
-        if (!this.isDying) {
-            this.vehicle.clear();
-            this.vehicle.lineStyle(2, 0xde00de);
+    if (!this.isDying) {
+        this.vehicle.clear();
+        this.vehicle.lineStyle(2, 0xde00de);
+        
+        // Main body
+        this.vehicle.fillStyle(0xde00de, 1);
+        this.vehicle.fillRect(x - 18, y - 6, 40, 8);
+        
+        // Top turret
+        this.vehicle.fillStyle(0x00deff, .8);
+        this.vehicle.fillRect(x - 4, y - 14, 12, 8);
+        this.vehicle.strokeRect(x - 5, y - 14, 13, 9)
+        
+        // Front cannon
+        this.vehicle.fillStyle(0xde00de, 1);
+        this.vehicle.fillRect(x + 20, y - 6, 8, 4);
+        
+        // Wheels with rotation
+        this.vehicle.lineStyle(2, 0x111111);
+        
+        // Define wheel positions
+        const wheelPositions = [-14, 0, 15];
+        const wheelOffset = 6;
+        
+        wheelPositions.forEach(pos => {
+            const wheelX = x + pos;
+            const wheelY = y + 4 + this.vehicleJiggle;
             
-            // Main body
-            this.vehicle.fillStyle(0xde00de, 1);
-            this.vehicle.fillRect(x - 18, y - 6, 40, 8);
-            
-            // Top turret
-            this.vehicle.fillStyle(0x00deff, .8);
-            this.vehicle.fillRect(x - 4, y - 14, 12, 8);
-            this.vehicle.strokeRect(x - 5, y - 14, 13, 9)
-            
-            // Front cannon
-            this.vehicle.fillStyle(0xde00de, 1);
-            this.vehicle.fillRect(x + 20, y - 6, 8, 4);
-            
-            // Wheels
-            this.vehicle.lineStyle(2, 0x111111);
-            this.vehicle.strokeCircle(x - 14, y + 4, 6);
-            this.vehicle.fillStyle(0x222222, 1);
-            this.vehicle.fill();
+            // Draw spokes for rotation effect
+            this.vehicle.beginPath();
+            this.vehicle.moveTo(
+                wheelX - wheelOffset * Math.cos(this.wheelRotation),
+                wheelY - wheelOffset * Math.sin(this.wheelRotation)
+            );
+            this.vehicle.lineTo(
+                wheelX + wheelOffset * Math.cos(this.wheelRotation),
+                wheelY + wheelOffset * Math.sin(this.wheelRotation)
+            );
+            this.vehicle.strokePath();
 
-            this.vehicle.strokeCircle(x, y + 5, 5);
-            this.vehicle.fillStyle(0x222222, 1);
-            this.vehicle.fill();
+            // Draw perpendicular spoke
+            this.vehicle.beginPath();
+            this.vehicle.moveTo(
+                wheelX - wheelOffset * Math.sin(this.wheelRotation),
+                wheelY + wheelOffset * Math.cos(this.wheelRotation)
+            );
+            this.vehicle.lineTo(
+                wheelX + wheelOffset * Math.sin(this.wheelRotation),
+                wheelY - wheelOffset * Math.cos(this.wheelRotation)
+            );
+            this.vehicle.strokePath();
 
-            this.vehicle.strokeCircle(x + 15, y + 4, 6);
+            // Draw wheel circle
+            this.vehicle.strokeCircle(wheelX, wheelY, 6);
             this.vehicle.fillStyle(0x222222, 1);
             this.vehicle.fill();
-        }
+        });
     }
+}
 
     shoot() {
         this.bullets.push({
@@ -576,12 +625,20 @@ class GameScene extends Phaser.Scene {
 
     addRock() {
         if (Math.random() < 0.3 && this.rocks.length < 3) {
-            this.rocks.push({
-                x: 420,
-                y: this.groundY - 24,
-                width: 25,
-                height: 25
-            });
+            // Check if there's a hole where we want to place the rock
+            const rockX = 420;
+            const isHoleAtPosition = this.groundHoles.some(hole => 
+                Math.abs(hole.x - rockX) < hole.width/2
+            );
+            
+            if (!isHoleAtPosition) {
+                this.rocks.push({
+                    x: rockX,
+                    y: this.groundY - 24,
+                    width: 25,
+                    height: 25
+                });
+            }
         }
     }
 
@@ -644,6 +701,31 @@ class GameScene extends Phaser.Scene {
                 }
             }
 
+            // Add this after the jumping physics code (where isJumping is handled)
+            if (!this.isDying && !this.isJumping) {
+                // Check if buggy is over a hole
+                const buggyX = 100;  // Center of the buggy
+                const isOverHole = this.groundHoles.some(hole => {
+                    const holeStart = hole.x - hole.width/2;
+                    const holeEnd = hole.x + hole.width/2;
+                    return buggyX > holeStart && buggyX < holeEnd;
+                });
+                
+                if (isOverHole) {
+                    this.addExplosion(100, this.vehicleY);
+                    this.lives--;
+                    this.livesText.setText('LIVES: ' + this.lives);
+                    
+                    if (this.lives <= 0) {
+                        this.gameOver();
+                    } else {
+                        this.isDying = true;
+                        this.respawnTimer = 100;
+                        // Make sure the buggy falls visually
+                        this.vehicleY += 20;
+                    }
+                }
+            }
             // Check UFO collision with buggy
             this.ufos.forEach((ufo, i) => {
                 if (this.checkBuggyCollision(
@@ -661,10 +743,10 @@ class GameScene extends Phaser.Scene {
                     } else {
                         this.isDying = true;
                         this.respawnTimer = 100;
+                        }
                     }
-                }
-            });
-        }
+                });
+            }
 
         // Update UFOs
         this.ufoSpawnTimer--;
@@ -757,7 +839,13 @@ class GameScene extends Phaser.Scene {
                 this.ufoProjectiles.splice(i, 1);
             }
         }
-
+        // Update holes
+        for (let i = this.groundHoles.length - 1; i >= 0; i--) {
+            this.groundHoles[i].x -= this.scrollSpeed;
+            if (this.groundHoles[i].x < -30) {
+                this.groundHoles.splice(i, 1);
+            }
+        }
         // Update rocks and check collisions
         for (let i = this.rocks.length - 1; i >= 0; i--) {
             const rock = this.rocks[i];
@@ -801,7 +889,7 @@ class GameScene extends Phaser.Scene {
             this.groundSegments.shift();
             this.groundSegments.push({
                 x: this.groundSegments[this.groundSegments.length - 1].x + 10,
-                y: this.groundY
+                y: this.groundY + Math.sin(this.groundSegments.length * 0.5) * 3
             });
         }
 
@@ -811,6 +899,12 @@ class GameScene extends Phaser.Scene {
             if (this.explosions[i].frame >= this.explosions[i].maxFrames) {
                 this.explosions.splice(i, 1);
             }
+        }
+
+        // Before drawing vehicle
+        if (!this.isDying) {
+            this.wheelRotation += this.scrollSpeed * 0.5;
+            this.vehicleJiggle = Math.sin(this.wheelRotation * 0.5) * 2;
         }
 
         // Draw everything
