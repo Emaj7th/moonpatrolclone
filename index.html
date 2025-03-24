@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Moon Patrol</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
@@ -14,6 +15,7 @@
             height: 100vh;
             touch-action: none;
         }
+
         #fullscreen-btn {
             position: fixed;
             top: 10px;
@@ -26,1268 +28,1272 @@
             font-family: monospace;
             z-index: 1000;
         }
+
         canvas {
             max-width: 100%;
             max-height: 100vh;
         }
     </style>
 </head>
+
 <body>
-<button id="fullscreen-btn">[ FULLSCREEN ]</button>
-<script>
-class GameScene extends Phaser.Scene {
-    constructor() {
-        super({ key: 'GameScene' });
-        this.score = 0;
-        this.lives = 3;
-        this.scrollSpeed = 0.75;
-        this.groundY = 200;
-        this.vehicleBaseY = 188;
-        this.isJumping = false;
-        this.jumpSpeed = 3;
-        this.gravity = 0.05;
-        this.vehicleY = this.vehicleBaseY;
-        this.jumpVelocity = 0;
-        this.wheelRotation = 0;
-        this.vehicleJiggle = 0;
-        this.bullets = [];
-        this.bulletSpeed = 6;
-        this.rocks = [];
-        this.explosions = [];
-        this.isDying = false;
-        this.respawnTimer = 0;
-        this.isGameOver = false;
-        this.ufos = [];
-        this.ufoProjectiles = [];
-        this.ufoSpawnTimer = 220;
-        this.explosionParts = [];  // Array to hold exploding parts
-        this.explosionBounce = -8; // Initial upward velocity for parts
-        this.explosionGravity = 0.4; // Gravity for explosion parts
-        // New properties for terrain features
-        this.groundHoles = [];
-        this.mountainPoints = [];
-        this.cityElements = [];
-        this.groundColor = 0xff9747; // Orange ground color
-        this.backgroundColor1 = 0x000066; // Dark blue sky
-        this.backgroundColor2 = 0x4488ff; // Light blue sky
-    }
+    <button id="fullscreen-btn">[ FULLSCREEN ]</button>
+    <script>
+        // launch local server: python -m http.server 8000
+        class GameScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'GameScene' });
+                this.score = 0;
+                this.lives = 3;
+                this.scrollSpeed = 0.75;
+                this.groundY = 200;
+                this.vehicleBaseY = 188;
+                this.isJumping = false;
+                this.jumpSpeed = 3;
+                this.gravity = 0.05;
+                this.vehicleY = this.vehicleBaseY;
+                this.jumpVelocity = 0;
+                this.wheelRotation = 0;
+                this.vehicleJiggle = 0;
+                this.bullets = [];
+                this.bulletSpeed = 6;
+                this.rocks = [];
+                this.explosions = [];
+                this.isDying = false;
+                this.respawnTimer = 0;
+                this.isGameOver = false;
+                this.ufos = [];
+                this.ufoProjectiles = [];
+                this.ufoSpawnTimer = 220;
+                this.explosionParts = [];  // Array to hold exploding parts
+                this.explosionBounce = -8; // Initial upward velocity for parts
+                this.explosionGravity = 0.4; // Gravity for explosion parts
+                // New properties for terrain features
+                this.groundHoles = [];
+                this.mountainPoints = [];
+                this.cityElements = [];
+                this.groundColor = 0xff9747; // Orange ground color
+                this.backgroundColor1 = 0x000066; // Dark blue sky
+                this.backgroundColor2 = 0x4488ff; // Light blue sky
+            }
 
-    init() {
-        // Stop any playing sounds
-        this.sound.stopAll();
-        // Start background music again
-        if (this.bgm) {
-            this.bgm.play();
+            init() {
+                // Stop any playing sounds
+                this.sound.stopAll();
+                // Start background music again
+                if (this.bgm) {
+                    this.bgm.play();
+                }
+                this.score = 0;
+                this.lives = 3;
+                this.isDying = false;
+                this.isGameOver = false;
+                this.respawnTimer = 0;
+                this.vehicleY = this.vehicleBaseY;
+                this.bullets = [];
+                this.rocks = [];
+                this.explosions = [];
+                this.ufos = [];
+                this.ufoProjectiles = [];
+                this.ufoSpawnTimer = 240;
+                this.groundHoles = [];
+                this.generateMountainPoints();
+                this.generateCityElements();
+            }
+
+            preload() {
+                // Load all sounds
+                this.load.audio('bgm', '/sounds/BGM.mp3');
+                this.load.audio('explode', '/sounds/explode.mp3');
+                this.load.audio('ufo_weapon', '/sounds/ufo_weapon.mp3');
+                this.load.audio('vehicle_weapon', '/sounds/vehicle_weapon.mp3');
+                this.load.audio('ending', '/sounds/ending.mp3');
+            }
+
+            create() {
+                const fullscreenBtn = document.getElementById('fullscreen-btn');
+                const game = this.game.canvas;
+
+                fullscreenBtn.onclick = () => {
+                    if (!document.fullscreenElement) {
+                        if (game.requestFullscreen) {
+                            game.requestFullscreen();
+                        }
+                    } else {
+                        if (document.exitFullscreen) {
+                            document.exitFullscreen();
+                        }
+                    }
+                };
+
+                // Instructions text
+                this.add.text(200, 35, '[SPACE = JUMP, ENTER = FIRE]', {
+                    fill: '#888888',
+                    fontSize: '12px',
+                    fontFamily: 'monospace'
+                }).setOrigin(0.5);
+
+                this.scoreText = this.add.text(16, 8, 'SCORE: ' + this.score, {
+                    fill: '#00de47',
+                    fontSize: '22px',
+                    fontFamily: 'monospace'
+                });
+
+                this.livesText = this.add.text(280, 8, 'LIVES: ' + this.lives, {
+                    fill: '#00de47',
+                    fontSize: '22px',
+                    fontFamily: 'monospace'
+                });
+
+                // Initialize graphics objects
+                this.backgroundMountains = this.add.graphics();
+                this.backgroundCity = this.add.graphics();
+                this.ground = this.add.graphics();
+                this.vehicle = this.add.graphics();
+                this.bulletsGraphics = this.add.graphics();
+                this.rocksGraphics = this.add.graphics();
+                this.explosionsGraphics = this.add.graphics();
+                this.ufosGraphics = this.add.graphics();
+                this.ufoProjectilesGraphics = this.add.graphics();
+
+                this.groundSegments = [];
+                for (let i = 0; i < 41; i++) {
+                    this.groundSegments.push({
+                        x: i * 10,
+                        y: this.groundY + Math.sin(i * 0.5) * 3
+                    });
+                }
+
+                // Create sound objects
+                this.bgm = this.sound.add('bgm', { loop: true });
+                this.explodeSound = this.sound.add('explode');
+                this.ufoWeaponSound = this.sound.add('ufo_weapon');
+                this.vehicleWeaponSound = this.sound.add('vehicle_weapon');
+                this.endingSound = this.sound.add('ending');
+
+                // Set volumes
+                this.bgm.setVolume(0.3);         // Background music lower
+                this.explodeSound.setVolume(0.4);
+                this.ufoWeaponSound.setVolume(0.4);
+                this.vehicleWeaponSound.setVolume(0.4);
+                this.endingSound.setVolume(0.5);
+
+                // Start background music
+                this.bgm.play();
+
+                // Mobile controls
+                this.setupMobileControls();
+
+                // Keyboard controls
+                this.setupKeyboardControls();
+            }
+
+            setupMobileControls() {
+                // Jump button
+                this.jumpBtn = this.add.graphics();
+                this.jumpBtn.lineStyle(2, 0x444444);
+                this.jumpBtn.strokeCircle(50, 270, 20);
+
+                // Fire button
+                this.fireBtn = this.add.graphics();
+                this.fireBtn.lineStyle(2, 0x444444);
+                this.fireBtn.strokeRect(320, 250, 40, 40);
+
+                // Button labels
+                this.add.text(50, 270, 'JUMP', {
+                    fill: '#444444',
+                    fontSize: '12px'
+                }).setOrigin(0.5);
+
+                this.add.text(340, 270, 'FIRE', {
+                    fill: '#444444',
+                    fontSize: '12px'
+                }).setOrigin(0.5);
+
+                // Make buttons interactive
+                this.jumpBtn.setInteractive(
+                    new Phaser.Geom.Circle(100, 270, 30),
+                    Phaser.Geom.Circle.Contains
+                );
+
+                this.fireBtn.setInteractive(
+                    new Phaser.Geom.Rectangle(250, 240, 60, 60),
+                    Phaser.Geom.Rectangle.Contains
+                );
+
+                this.jumpBtn.on('pointerdown', () => {
+                    if (!this.isDying && !this.isJumping) {
+                        this.isJumping = true;
+                        this.jumpVelocity = -this.jumpSpeed;
+                    }
+                });
+
+                this.fireBtn.on('pointerdown', () => {
+                    if (!this.isDying) {
+                        this.shoot();
+                    }
+                });
+            }
+
+            setupKeyboardControls() {
+                this.input.keyboard.on('keydown-SPACE', () => {
+                    if (!this.isDying && !this.isJumping) {
+                        this.isJumping = true;
+                        this.jumpVelocity = -this.jumpSpeed;
+                    }
+                });
+
+                this.input.keyboard.on('keydown-ENTER', () => {
+                    if (!this.isDying) {
+                        this.shoot();
+                    }
+                });
+            }
+            generateMountainPoints() {
+                this.mountainPoints = [];
+                let x = 0;
+                while (x < 800) {
+                    const height = 50 + Math.random() * 50;
+                    this.mountainPoints.push({
+                        x: x,
+                        y: 150 - height
+                    });
+                    x += 5 + Math.random() * 14;
+                }
+            }
+
+            generateCityElements() {
+                this.cityElements = [];
+                let x = 0;
+                while (x < 800) {
+                    const height = 30 + Math.random() * 40;
+                    const width = 15 + Math.random() * 20;
+                    this.cityElements.push({
+                        x: x,
+                        y: this.groundY - height,
+                        width: width,
+                        height: height,
+                        type: Math.floor(Math.random() * 3)
+                    });
+                    x += width + 10 + Math.random() * 20;
+                }
+            }
+
+            drawBackground() {
+                // Draw gradient sky
+                /*
+                const gradient = this.add.graphics();
+                gradient.clear();
+                for (let y = 0; y < 150; y++) {
+                    const ratio = y / 150;
+                    const color = Phaser.Display.Color.Interpolate.ColorWithColor(
+                        Phaser.Display.Color.ValueToColor(this.backgroundColor1),
+                        Phaser.Display.Color.ValueToColor(this.backgroundColor2),
+                        150,
+                        y
+                    );
+                    gradient.lineStyle(1, color, 1);
+                    gradient.lineBetween(0, y, 400, y);
+                }
+                */
+                // Draw mountains
+                this.backgroundMountains.clear();
+                this.backgroundMountains.lineStyle(2, 0x0000de);
+                this.backgroundMountains.beginPath();
+                this.mountainPoints.forEach((point, i) => {
+                    if (i === 0) {
+                        this.backgroundMountains.moveTo(point.x, 300);
+                    }
+                    this.backgroundMountains.lineTo(point.x, point.y);
+                    if (i === this.mountainPoints.length - 1) {
+                        this.backgroundMountains.lineTo(point.x, 300);
+                    }
+                });
+                this.backgroundMountains.closePath();
+                this.backgroundMountains.fillStyle(0x009797, 1);
+                this.backgroundMountains.fill();
+                this.backgroundMountains.strokePath();
+
+                // Draw city
+                this.backgroundCity.clear();
+                this.backgroundCity.lineStyle(2, 0xffde47);
+                this.backgroundCity.fillStyle(0x00de47, 1);
+                this.cityElements.forEach(building => {
+                    // Draw wider platform base
+                    this.backgroundCity.fillRect(
+                        building.x - 20, // Extend 20px left
+                        this.groundY - 5,
+                        building.width + 40, // Extend 20px right
+                        45 // Extend below ground level
+                    );
+                });
+                // Then draw all buildings on top
+                this.cityElements.forEach(building => {
+                    switch (building.type) {
+                        case 0:
+                            this.drawBuilding(building);
+                            break;
+                        case 1:
+                            this.drawDomedBuilding(building);
+                            break;
+                        case 2:
+                            this.drawAntennaBuilding(building);
+                            break;
+                    }
+                });
+            }
+
+            drawBuilding(building) {
+                const baseWidth = building.width;
+                const baseHeight = building.height;
+
+                // Draw base structure
+                this.backgroundCity.fillStyle(0x00de47, 1);
+                this.backgroundCity.fillRect(building.x, building.y, baseWidth, baseHeight);
+
+                // Draw windows - two columns
+                this.backgroundCity.lineStyle(1, 0x000000);
+                const windowRows = 4;
+                const windowCols = 2;
+                const windowWidth = baseWidth / (windowCols + 1);
+                const windowHeight = baseHeight / (windowRows + 1);
+
+                for (let row = 0; row < windowRows; row++) {
+                    for (let col = 0; col < windowCols; col++) {
+                        const windowX = building.x + (col + 1) * (baseWidth / (windowCols + 1)) - windowWidth / 2;
+                        const windowY = building.y + (row + 1) * (baseHeight / (windowRows + 1)) - windowHeight / 2;
+                        this.backgroundCity.strokeRect(windowX, windowY, windowWidth, windowHeight);
+                    }
+                }
+
+                // Add horizontal lines for detail
+                for (let i = 1; i < 4; i++) {
+                    this.backgroundCity.beginPath();
+                    this.backgroundCity.moveTo(building.x, building.y + (baseHeight * i / 4));
+                    this.backgroundCity.lineTo(building.x + baseWidth, building.y + (baseHeight * i / 4));
+                    this.backgroundCity.strokePath();
+                }
+            }
+
+            drawDomedBuilding(building) {
+                const baseWidth = building.width;
+                const baseHeight = building.height * 0.7;
+                const domeHeight = building.height * 0.3;
+
+                // Draw base with windows
+                this.backgroundCity.fillStyle(0x00de47, 1);
+                this.backgroundCity.fillRect(building.x, building.y + domeHeight, baseWidth, baseHeight);
+
+                // Draw windows
+                this.backgroundCity.lineStyle(1, 0x000000);
+                const windowRows = 3;
+                const windowCols = 2;
+                const windowWidth = baseWidth / (windowCols + 1);
+                const windowHeight = baseHeight / (windowRows + 1);
+
+                for (let row = 0; row < windowRows; row++) {
+                    for (let col = 0; col < windowCols; col++) {
+                        const windowX = building.x + (col + 1) * (baseWidth / (windowCols + 1)) - windowWidth / 2;
+                        const windowY = building.y + domeHeight + (row + 1) * (baseHeight / (windowRows + 1)) - windowHeight / 2;
+                        this.backgroundCity.strokeRect(windowX, windowY, windowWidth, windowHeight);
+                    }
+                }
+
+                // Draw dome with details
+                this.backgroundCity.beginPath();
+                this.backgroundCity.arc(
+                    building.x + baseWidth / 2,
+                    building.y + domeHeight,
+                    baseWidth / 2,
+                    Math.PI, 0, true
+                );
+                this.backgroundCity.fillStyle(0x00de47, 1);
+                this.backgroundCity.fill();
+                this.backgroundCity.strokePath();
+
+                // Add dome detail lines
+                this.backgroundCity.beginPath();
+                this.backgroundCity.arc(
+                    building.x + baseWidth / 2,
+                    building.y + domeHeight,
+                    baseWidth / 3,
+                    Math.PI, 0, true
+                );
+                this.backgroundCity.strokePath();
+            }
+
+            drawAntennaBuilding(building) {
+                const baseWidth = building.width;
+                const baseHeight = building.height * 0.8;
+                const antennaHeight = building.height * 0.4;
+
+                // Draw main building
+                this.backgroundCity.fillStyle(0x00de47, 1);
+                this.backgroundCity.fillRect(building.x, building.y + antennaHeight, baseWidth, baseHeight);
+
+                // Draw windows
+                this.backgroundCity.lineStyle(1, 0x000000);
+                const windowRows = 3;
+                const windowCols = 2;
+                const windowWidth = baseWidth / (windowCols + 1);
+                const windowHeight = baseHeight / (windowRows + 1);
+
+                for (let row = 0; row < windowRows; row++) {
+                    for (let col = 0; col < windowCols; col++) {
+                        const windowX = building.x + (col + 1) * (baseWidth / (windowCols + 1)) - windowWidth / 2;
+                        const windowY = building.y + antennaHeight + (row + 1) * (baseHeight / (windowRows + 1)) - windowHeight / 2;
+                        this.backgroundCity.strokeRect(windowX, windowY, windowWidth, windowHeight);
+                    }
+                }
+
+                // Draw antenna base
+                const antennaBaseWidth = baseWidth * 0.3;
+                this.backgroundCity.fillRect(
+                    building.x + (baseWidth - antennaBaseWidth) / 2,
+                    building.y + antennaHeight,
+                    antennaBaseWidth,
+                    antennaHeight * 0.3
+                );
+
+                // Draw main antenna
+                this.backgroundCity.lineStyle(2, 0x00de47);
+                this.backgroundCity.beginPath();
+                this.backgroundCity.moveTo(building.x + baseWidth / 2, building.y + antennaHeight);
+                this.backgroundCity.lineTo(building.x + baseWidth / 2, building.y);
+
+                // Draw antenna cross pieces
+                const crossPieceCount = 3;
+                for (let i = 0; i < crossPieceCount; i++) {
+                    const y = building.y + (i * antennaHeight / crossPieceCount);
+                    const width = baseWidth * (0.3 - (i * 0.08));
+                    this.backgroundCity.moveTo(building.x + baseWidth / 2 - width / 2, y);
+                    this.backgroundCity.lineTo(building.x + baseWidth / 2 + width / 2, y);
+                }
+                this.backgroundCity.strokePath();
+            }
+
+            // draws holes
+            drawHoles() {
+                this.ground.lineStyle(3, 0x000000);  // Black outline for holes
+                this.ground.fillStyle(0x000000, 1);  // Black fill for holes
+
+                this.groundHoles.forEach(hole => {
+                    // Draw an oval/ellipse shape for the hole
+                    this.ground.beginPath();
+                    const holeY = this.groundY + 2; // Slightly below ground level
+                    this.ground.ellipse(hole.x, holeY, hole.width / 2, 10);
+                    this.ground.closePath();
+                    this.ground.fill();
+                    this.ground.strokePath();
+                });
+            }
+
+            // Modify the drawGround method to be simpler - just draw and fill the lumpy ground
+            drawGround() {
+                this.ground.clear();
+
+                // First draw the filled ground
+                this.ground.lineStyle(3, this.groundColor);
+                this.ground.beginPath();
+                this.ground.moveTo(0, 300);
+
+                // Draw the ground line with gaps for holes
+                let currentX = 0;
+                this.groundSegments.forEach((segment, i) => {
+                    const lumpY = segment.y + Math.sin(i * 0.5) * 3;
+
+                    // Check if this segment is part of a hole
+                    const isHole = this.groundHoles.some(hole =>
+                        Math.abs(hole.x - segment.x) < hole.width / 2
+                    );
+
+                    if (isHole) {
+                        // Draw the hole as a dip in the ground line
+                        this.ground.lineTo(segment.x, lumpY + 15);
+                    } else {
+                        this.ground.lineTo(segment.x, lumpY);
+                    }
+                });
+
+                // Complete the ground path
+                this.ground.lineTo(400, 300);
+                this.ground.lineTo(0, 300);
+
+                // Fill and stroke
+                this.ground.fillStyle(this.groundColor, 1);
+                this.ground.fill();
+                this.ground.strokePath();
+            }
+            addUfo() {
+                this.ufos.push({
+                    x: 420,
+                    y: 80 + Math.random() * 60,
+                    width: 30,
+                    height: 15,
+                    startY: 80 + Math.random() * 60,
+                    angle: 0,
+                    shotTimer: 60 + Math.random() * 60,
+                    // New properties for movement patterns
+                    pattern: Math.floor(Math.random() * 3),
+                    patternTimer: 60 + Math.random() * 60,
+                    diagonalDirection: Math.random() > 0.5 ? 1 : -1
+                });
+            }
+            ufoShoot(ufo) {
+                this.ufoWeaponSound.play();
+                this.ufoProjectiles.push({
+                    x: ufo.x,
+                    y: ufo.y + ufo.height / 2,
+                    vx: -2,  // Add horizontal velocity
+                    vy: 4,   // Keep vertical velocity
+                    width: 2,  // Make slightly wider
+                    height: 6
+                });
+            }
+
+            addExplosion(x, y, color = 0xae3628, scale = 1.5) {
+                this.explosions.push({
+                    x: x,
+                    y: y,
+                    frame: 0,
+                    maxFrames: 20,
+                    scale: scale,
+                    color: color,
+                    alpha: 1.0
+                });
+            }
+
+            // Add this method to create explosion parts
+            createExplosionParts(x, y) {
+                // Create three wheels that will bounce away
+                this.explosionParts = [
+                    {
+                        x: x - 14, y: y,  // Left wheel
+                        vx: -3, vy: this.explosionBounce,
+                        rotation: 0
+                    },
+                    {
+                        x: x, y: y,      // Middle wheel
+                        vx: 0, vy: this.explosionBounce * 1.2,
+                        rotation: 0
+                    },
+                    {
+                        x: x + 15, y: y, // Right wheel
+                        vx: 3, vy: this.explosionBounce,
+                        rotation: 0
+                    }
+                ];
+            }
+            // Add this method to draw the explosion parts
+            drawExplosionParts() {
+                this.vehicle.clear();
+                this.vehicle.lineStyle(2, 0x111111);
+
+                this.explosionParts.forEach(part => {
+                    // Draw wheel with rotation
+                    this.vehicle.strokeCircle(part.x, part.y, 6);
+                    this.vehicle.fillStyle(0x222222, 1);
+                    this.vehicle.fill();
+
+                    // Draw spokes for rotation effect
+                    const wheelOffset = 6;
+
+                    // Vertical spoke
+                    this.vehicle.beginPath();
+                    this.vehicle.moveTo(
+                        part.x - wheelOffset * Math.cos(part.rotation),
+                        part.y - wheelOffset * Math.sin(part.rotation)
+                    );
+                    this.vehicle.lineTo(
+                        part.x + wheelOffset * Math.cos(part.rotation),
+                        part.y + wheelOffset * Math.sin(part.rotation)
+                    );
+                    this.vehicle.strokePath();
+
+                    // Horizontal spoke
+                    this.vehicle.beginPath();
+                    this.vehicle.moveTo(
+                        part.x - wheelOffset * Math.sin(part.rotation),
+                        part.y + wheelOffset * Math.cos(part.rotation)
+                    );
+                    this.vehicle.lineTo(
+                        part.x + wheelOffset * Math.sin(part.rotation),
+                        part.y - wheelOffset * Math.cos(part.rotation)
+                    );
+                    this.vehicle.strokePath();
+                });
+            }
+            drawVehicle(x, y) {
+                if (this.isDying && this.explosionParts.length > 0) {
+                    this.drawExplosionParts();
+                } else if (!this.isDying) {
+                    this.vehicle.clear();
+                    this.vehicle.lineStyle(2, 0xde00de);
+
+                    // Main body
+                    this.vehicle.fillStyle(0xde00de, 1);
+                    this.vehicle.fillRect(x - 18, y - 6, 40, 8);
+
+                    // Top turret
+                    this.vehicle.fillStyle(0x00deff, .8);
+                    this.vehicle.fillRect(x - 4, y - 14, 12, 8);
+                    this.vehicle.strokeRect(x - 5, y - 14, 13, 9)
+
+                    // Front cannon
+                    this.vehicle.fillStyle(0xde00de, 1);
+                    this.vehicle.fillRect(x + 20, y - 6, 8, 4);
+
+                    // Wheels with rotation
+                    this.vehicle.lineStyle(2, 0x111111);
+
+                    // Define wheel positions
+                    const wheelPositions = [-14, 0, 15];
+                    const wheelOffset = 6;
+
+                    wheelPositions.forEach(pos => {
+                        const wheelX = x + pos;
+                        const wheelY = y + 4 + this.vehicleJiggle;
+
+                        // Draw spokes for rotation effect
+                        this.vehicle.beginPath();
+                        this.vehicle.moveTo(
+                            wheelX - wheelOffset * Math.cos(this.wheelRotation),
+                            wheelY - wheelOffset * Math.sin(this.wheelRotation)
+                        );
+                        this.vehicle.lineTo(
+                            wheelX + wheelOffset * Math.cos(this.wheelRotation),
+                            wheelY + wheelOffset * Math.sin(this.wheelRotation)
+                        );
+                        this.vehicle.strokePath();
+
+                        // Draw perpendicular spoke
+                        this.vehicle.beginPath();
+                        this.vehicle.moveTo(
+                            wheelX - wheelOffset * Math.sin(this.wheelRotation),
+                            wheelY + wheelOffset * Math.cos(this.wheelRotation)
+                        );
+                        this.vehicle.lineTo(
+                            wheelX + wheelOffset * Math.sin(this.wheelRotation),
+                            wheelY - wheelOffset * Math.cos(this.wheelRotation)
+                        );
+                        this.vehicle.strokePath();
+
+                        // Draw wheel circle
+                        this.vehicle.strokeCircle(wheelX, wheelY, 6);
+                        this.vehicle.fillStyle(0x222222, 1);
+                        this.vehicle.fill();
+                    });
+                }
+            }
+
+            shoot() {
+                this.vehicleWeaponSound.play();
+                this.bullets.push({
+                    x: 128,
+                    y: this.vehicleY - 4,
+                    vx: this.bulletSpeed,
+                    vy: 0,
+                    type: 'front'
+                });
+
+                this.bullets.push({
+                    x: 100,
+                    y: this.vehicleY - 16,
+                    vx: 0,
+                    vy: -this.bulletSpeed,
+                    type: 'top'
+                });
+            }
+
+            drawBullets() {
+                this.bulletsGraphics.clear();
+                this.bulletsGraphics.lineStyle(2, 0xaaaaaa);
+
+                this.bullets.forEach(bullet => {
+                    if (bullet.type === 'front') {
+                        this.bulletsGraphics.strokeRect(bullet.x, bullet.y, 8, 2);
+                    } else {
+                        this.bulletsGraphics.strokeRect(bullet.x - 1, bullet.y, 2, 8);
+                    }
+                });
+            }
+
+            drawUfos() {
+                this.ufosGraphics.clear();
+                this.ufosGraphics.lineStyle(2, 0xaaaaaa);
+
+                this.ufos.forEach(ufo => {
+                    // UFO body
+                    this.ufosGraphics.beginPath();
+                    this.ufosGraphics.moveTo(ufo.x - ufo.width / 2, ufo.y);
+                    this.ufosGraphics.lineTo(ufo.x - ufo.width / 4, ufo.y - ufo.height / 2);
+                    this.ufosGraphics.lineTo(ufo.x + ufo.width / 4, ufo.y - ufo.height / 2);
+                    this.ufosGraphics.lineTo(ufo.x + ufo.width / 2, ufo.y);
+                    this.ufosGraphics.lineTo(ufo.x + ufo.width / 4, ufo.y + ufo.height / 2);
+                    this.ufosGraphics.lineTo(ufo.x - ufo.width / 4, ufo.y + ufo.height / 2);
+                    this.ufosGraphics.closePath();
+                    this.ufosGraphics.fillStyle(0x999999, 1);
+                    this.ufosGraphics.fill();
+                    this.ufosGraphics.strokePath();
+
+                    // UFO dome
+                    this.ufosGraphics.beginPath();
+                    this.ufosGraphics.arc(ufo.x, ufo.y - ufo.height / 4, ufo.width / 4, 0, Math.PI, true);
+                    this.ufosGraphics.fillStyle(0xffde47, 1);
+                    this.ufosGraphics.fill();
+                    this.ufosGraphics.strokePath();
+                });
+            }
+
+            drawUfoProjectiles() {
+                this.ufoProjectilesGraphics.clear();
+                this.ufoProjectilesGraphics.lineStyle(2, 0xff0000);
+
+                this.ufoProjectiles.forEach(proj => {
+                    this.ufoProjectilesGraphics.strokeRect(proj.x - 1, proj.y, proj.width, proj.height);
+                });
+            }
+
+            // Add this helper function for rocks at the top of the class
+            generateRockShape(rock) {
+                const numPoints = 6;  // Fixed number of points
+                const points = [];
+                const centerX = rock.x + rock.width / 2;
+                const centerY = rock.y + rock.height / 2;
+
+                for (let i = 0; i < numPoints; i++) {
+                    const angle = (i / numPoints) * Math.PI * 2;
+                    const radius = (rock.width / 2) * (0.8 + Math.random() * 0.2);
+                    points.push({
+                        x: centerX + Math.cos(angle) * radius,
+                        y: centerY + Math.sin(angle) * radius * 0.8
+                    });
+                }
+                return points;
+            }
+
+            drawRocks() {
+                this.rocksGraphics.clear();
+
+                this.rocks.forEach(rock => {
+                    // Generate points only if they don't exist yet
+                    if (!rock.points) {
+                        rock.points = this.generateRockShape(rock);
+                    }
+
+                    // Draw the rock
+                    this.rocksGraphics.lineStyle(2, 0x898074);
+                    this.rocksGraphics.beginFill(0x898074);
+
+                    // Draw the shape
+                    this.rocksGraphics.beginPath();
+                    this.rocksGraphics.moveTo(rock.points[0].x, rock.points[0].y);
+
+                    for (let i = 1; i < rock.points.length; i++) {
+                        this.rocksGraphics.lineTo(rock.points[i].x, rock.points[i].y);
+                    }
+
+                    this.rocksGraphics.closePath();
+                    this.rocksGraphics.fill();
+                    this.rocksGraphics.stroke();
+                });
+            }
+
+            drawRocks() {
+                this.rocksGraphics.clear();
+
+                this.rocks.forEach(rock => {
+                    const centerX = rock.x + rock.width / 2;
+                    const centerY = rock.y + rock.height / 2;
+
+                    // Draw main rock shape
+                    this.rocksGraphics.lineStyle(2, 0x666666);  // Darker gray outline
+                    this.rocksGraphics.fillStyle(0x898074, 1);  // Rock gray color
+
+                    this.rocksGraphics.beginPath();
+
+                    // Create a more natural rock shape with 6-8 points
+                    const points = [];
+                    const numPoints = 6;
+                    const baseRadius = rock.width * 0.4;  // Made smaller
+
+                    for (let i = 0; i < numPoints; i++) {
+                        const angle = (i / numPoints) * Math.PI * 2;
+                        // Add some randomness to radius for each point
+                        const radius = baseRadius * (0.9 + Math.random() * 0.2);
+                        points.push({
+                            x: centerX + Math.cos(angle) * radius,
+                            y: centerY + Math.sin(angle) * (radius * 0.8)  // Slightly flatter
+                        });
+                    }
+
+                    // Draw the shape
+                    this.rocksGraphics.moveTo(points[0].x, points[0].y);
+                    points.forEach(point => {
+                        this.rocksGraphics.lineTo(point.x, point.y);
+                    });
+
+                    this.rocksGraphics.closePath();
+                    this.rocksGraphics.fillPath();
+                    this.rocksGraphics.strokePath();
+
+                    // Add some detail lines for texture
+                    this.rocksGraphics.lineStyle(1, 0x666666);
+                    this.rocksGraphics.beginPath();
+                    this.rocksGraphics.moveTo(points[0].x, points[0].y);
+                    this.rocksGraphics.lineTo(points[3].x, points[3].y);
+                    this.rocksGraphics.strokePath();
+
+                    // Add another detail line
+                    this.rocksGraphics.beginPath();
+                    this.rocksGraphics.moveTo(points[1].x, points[1].y);
+                    this.rocksGraphics.lineTo(points[4].x, points[4].y);
+                    this.rocksGraphics.strokePath();
+
+                    // Remove debug box
+                    // this.rocksGraphics.lineStyle(1, 0xff0000);
+                    // this.rocksGraphics.strokeRect(rock.x, rock.y, rock.width, rock.height);
+                });
+            }
+
+            drawExplosions() {
+                this.explosionsGraphics.clear();
+
+                this.explosions.forEach(explosion => {
+                    const alpha = 1 - (explosion.frame / explosion.maxFrames);
+                    this.explosionsGraphics.lineStyle(2, explosion.color || 0xae3628, alpha);
+                    const size = 20 * (1 - explosion.frame / explosion.maxFrames) * explosion.scale;
+                    const segments = 8;
+                    const angleStep = (Math.PI * 2) / segments;
+
+                    for (let i = 0; i < segments; i++) {
+                        const angle = i * angleStep;
+                        const x1 = explosion.x + Math.cos(angle) * size;
+                        const y1 = explosion.y + Math.sin(angle) * size;
+                        const x2 = explosion.x + Math.cos(angle + angleStep / 2) * (size * 0.5);
+                        const y2 = explosion.y + Math.sin(angle + angleStep / 2) * (size * 0.5);
+
+                        this.explosionsGraphics.beginPath();
+                        this.explosionsGraphics.moveTo(x1, y1);
+                        this.explosionsGraphics.lineTo(x2, y2);
+                        this.explosionsGraphics.strokePath();
+                    }
+                });
+            }
+
+            addRock() {
+                if (Math.random() < 0.3 && this.rocks.length < 3) {
+                    const rockX = 420;
+                    const isHoleAtPosition = this.groundHoles.some(hole =>
+                        Math.abs(hole.x - rockX) < hole.width / 2
+                    );
+
+                    if (!isHoleAtPosition) {
+                        const rock = {
+                            x: rockX,
+                            y: this.groundY - 18,
+                            width: 25,
+                            height: 25
+                        };
+                        rock.points = this.generateRockShape(rock);
+                        this.rocks.push(rock);
+                    }
+                }
+            }
+
+            gameOver() {
+                this.isGameOver = true;
+                this.bgm.stop();  // Stop background music
+                this.endingSound.play();  // Play ending sound
+                this.add.text(200, 150, 'GAME OVER', {
+                    fill: '#000000',
+                    fontSize: '32px',
+                    fontFamily: 'monospace'
+                }).setOrigin(0.5);
+
+                const restartBtn = this.add.graphics();
+                restartBtn.lineStyle(2, 0x000000);
+                restartBtn.strokeRect(140, 220, 100, 40);
+
+                this.add.text(190, 240, 'RESTART', {
+                    fill: '#000000',
+                    fontSize: '16px'
+                }).setOrigin(0.5);
+
+                restartBtn.setInteractive(
+                    new Phaser.Geom.Rectangle(150, 220, 100, 40),
+                    Phaser.Geom.Rectangle.Contains
+                );
+
+                restartBtn.on('pointerdown', () => {
+                    this.init();
+                    this.scene.restart();
+                });
+            }
+
+            checkBuggyCollision(x1, y1, w1, h1, x2, y2, w2, h2) {
+                return Math.abs((x1 + w1 / 2) - (x2 + w2 / 2)) < (w1 + w2) / 2 &&
+                    Math.abs((y1 + h1 / 2) - (y2 + h2 / 2)) < (h1 + h2) / 2;
+            }
+
+            update() {
+                if (this.isGameOver) return;
+
+                // Randomly add new holes (with lower frequency)
+                if (Math.random() < 0.0005) { // Much lower chance to spawn holes
+                    this.groundHoles.push({
+                        x: 420, // Start off-screen
+                        width: 50,  // Make them wider
+                        active: true // Flag to track if hole can cause damage
+                    });
+                }
+
+                if (this.isDying) {
+                    if (this.respawnTimer > 0) {
+                        this.respawnTimer--;
+                        if (this.respawnTimer <= 0) {
+                            this.isDying = false;
+                            this.vehicleY = this.vehicleBaseY;
+                            this.isJumping = false;
+                            this.jumpVelocity = 0;
+                        }
+                    }
+                } else {
+                    if (this.isJumping) {
+                        this.jumpVelocity += this.gravity;
+                        this.vehicleY += this.jumpVelocity;
+
+                        if (this.vehicleY >= this.vehicleBaseY) {
+                            this.vehicleY = this.vehicleBaseY;
+                            this.isJumping = false;
+                            this.jumpVelocity = 0;
+                        }
+                    }
+
+                    // Check if buggy is over a hole
+                    if (!this.isDying && !this.isJumping) {
+                        const buggyX = 100;  // Center of the buggy
+                        const isOverHole = this.groundHoles.some(hole => {
+                            if (!hole.active) return false; // Skip inactive holes
+                            const holeStart = hole.x - hole.width / 2;
+                            const holeEnd = hole.x + hole.width / 2;
+                            const isOver = buggyX > holeStart && buggyX < holeEnd;
+                            if (isOver) {
+                                hole.active = false; // Prevent multiple collisions with same hole
+                                return true;
+                            }
+                            return false;
+                        });
+
+                        if (isOverHole) {
+                            this.addExplosion(100, this.vehicleY);
+                            this.explodeSound.play();
+                            this.lives--;
+                            this.livesText.setText('LIVES: ' + this.lives);
+
+                            if (this.lives <= 0) {
+                                this.gameOver();
+                            } else {
+                                this.isDying = true;
+                                this.respawnTimer = 100;
+                                // Make the buggy fall visibly
+                                this.vehicleY += 30;
+                            }
+                        }
+                    }
+
+                    // Check UFO collision with buggy
+                    this.ufos.forEach((ufo, i) => {
+                        if (this.checkBuggyCollision(
+                            100 - 20, this.vehicleY - 8, 40, 16,
+                            ufo.x - ufo.width / 2, ufo.y - ufo.height / 2, ufo.width, ufo.height
+                        )) {
+                            this.addExplosion(ufo.x, ufo.y, 0xff0000);
+                            this.addExplosion(100, this.vehicleY);
+                            this.explodeSound.play();
+                            this.ufos.splice(i, 1);
+                            this.lives--;
+                            this.livesText.setText('LIVES: ' + this.lives);
+
+                            if (this.lives <= 0) {
+                                this.gameOver();
+                            } else {
+                                this.isDying = true;
+                                this.respawnTimer = 100;
+                                this.createExplosionParts(100, this.vehicleY);
+                            }
+                        }
+                    });
+                }
+
+
+                // Update UFOs
+                this.ufoSpawnTimer--;
+                if (this.ufoSpawnTimer <= 0) {
+                    this.addUfo();
+                    this.ufoSpawnTimer = 380;
+                }
+
+                // Update UFO positions and shooting
+                for (let i = this.ufos.length - 1; i >= 0; i--) {
+                    const ufo = this.ufos[i];
+                    ufo.x -= 1.5;
+                    ufo.angle += 0.05;
+                    ufo.y = ufo.startY + Math.sin(ufo.angle) * 30;
+
+                    ufo.shotTimer--;
+                    if (ufo.shotTimer <= 0) {
+                        this.ufoShoot(ufo);
+                        ufo.shotTimer = 220 + Math.random() * 60;
+                    }
+
+                    if (ufo.x < -30) {
+                        this.ufos.splice(i, 1);
+                    }
+                }
+
+                // Update bullets and check collisions
+                for (let j = this.bullets.length - 1; j >= 0; j--) {
+                    const bullet = this.bullets[j];
+                    bullet.x += bullet.vx;
+                    bullet.y += bullet.vy;
+
+                    // Check rocks first
+                    for (let k = this.rocks.length - 1; k >= 0; k--) {
+                        const rock = this.rocks[k];
+                        if (bullet.x >= rock.x && bullet.x <= rock.x + rock.width &&
+                            bullet.y >= rock.y && bullet.y <= rock.y + rock.height) {
+                            this.addExplosion(rock.x + rock.width / 2, rock.y + rock.height / 2);
+                            this.explodeSound.play();
+                            this.rocks.splice(k, 1);
+                            this.bullets.splice(j, 1);
+                            this.score += 100;
+                            break;
+                        }
+                    }
+
+                    // Then check UFOs
+                    for (let i = this.ufos.length - 1; i >= 0; i--) {
+                        const ufo = this.ufos[i];
+                        if (bullet.x >= ufo.x - ufo.width / 2 &&
+                            bullet.x <= ufo.x + ufo.width / 2 &&
+                            bullet.y >= ufo.y - ufo.height / 2 &&
+                            bullet.y <= ufo.y + ufo.height / 2) {
+                            this.addExplosion(ufo.x, ufo.y, 0xff0000);
+                            this.explodeSound.play();
+                            this.ufos.splice(i, 1);
+                            this.bullets.splice(j, 1);
+                            this.score += 200;
+                            break;
+                        }
+                    }
+
+                    // Remove off-screen bullets
+                    if (bullet.x > 400 || bullet.x < 0 || bullet.y > 300 || bullet.y < 0) {
+                        this.bullets.splice(j, 1);
+                    }
+                }
+
+                // Update UFOs
+                this.ufoSpawnTimer--;
+                if (this.ufoSpawnTimer <= 0) {
+                    this.addUfo();
+                    this.ufoSpawnTimer = 380;
+                }
+
+                // Update UFO positions and shooting
+                this.ufos.forEach((ufo, i) => {
+                    // Basic movement
+                    ufo.x -= 1.5;
+
+                    // If we don't have a movement pattern, create one
+                    if (!ufo.pattern) {
+                        ufo.pattern = Math.floor(Math.random() * 3); // 0: wave, 1: straight, 2: diagonal
+                        ufo.patternTimer = 60 + Math.random() * 60;
+                        ufo.diagonalDirection = Math.random() > 0.5 ? 1 : -1;
+                    }
+
+                    // Update pattern timer
+                    ufo.patternTimer--;
+                    if (ufo.patternTimer <= 0) {
+                        ufo.pattern = Math.floor(Math.random() * 3);
+                        ufo.patternTimer = 60 + Math.random() * 60;
+                        ufo.diagonalDirection = Math.random() > 0.5 ? 1 : -1;
+                    }
+
+                    // Apply pattern movement
+                    switch (ufo.pattern) {
+                        case 0: // Wave
+                            ufo.angle += 0.05 + Math.random() * 0.03;  // Add randomness to wave speed
+                            ufo.y = ufo.startY + Math.sin(ufo.angle) * 40;  // Increased from 30
+                            break;
+                        case 1: // Straight
+                            // Add slight wobble even in straight flight
+                            ufo.y += (Math.random() - 0.5) * 0.5;
+                            break;
+                        case 2: // Diagonal
+                            ufo.y += ufo.diagonalDirection * (0.5 + Math.random() * 0.5);  // More variable speed
+                            if (ufo.y < 50 || ufo.y > 150) {
+                                ufo.diagonalDirection *= -1;
+                            }
+                            break;
+                    }
+
+                    // Keep existing shooting logic
+                    ufo.shotTimer--;
+                    if (ufo.shotTimer <= 0) {
+                        this.ufoShoot(ufo);
+                        ufo.shotTimer = 120 + Math.random() * 60;
+                    }
+
+                    // Keep existing off-screen check
+                    if (ufo.x < -30) {
+                        this.ufos.splice(i, 1);
+                    }
+
+
+                    // Update UFO projectiles
+                    for (let i = this.ufoProjectiles.length - 1; i >= 0; i--) {
+                        const proj = this.ufoProjectiles[i];
+                        proj.x += proj.vx;  // Move horizontally
+                        proj.y += proj.vy;  // Move vertically
+
+                        if (!this.isDying &&
+                            Math.abs(100 - proj.x) < 20 &&
+                            Math.abs(this.vehicleY - proj.y) < 20) {
+                            this.addExplosion(100, this.vehicleY, 0xff0000);
+                            this.explodeSound.play();
+                            this.ufoProjectiles.splice(i, 1);
+                            this.lives--;
+                            this.livesText.setText('LIVES: ' + this.lives);
+
+                            if (this.lives <= 0) {
+                                this.gameOver();
+                            } else {
+                                this.isDying = true;
+                                this.respawnTimer = 100;
+                                this.createExplosionParts(100, this.vehicleY);
+                            }
+                            continue;
+                        }
+
+                        if (proj.y > 300 || proj.x < -10) {  // Remove if off screen
+                            this.ufoProjectiles.splice(i, 1);
+                        }
+                    }
+                    // Update hole positions and cleanup
+                    for (let i = this.groundHoles.length - 1; i >= 0; i--) {
+                        this.groundHoles[i].x -= this.scrollSpeed;
+                        // Remove holes that are off screen
+                        if (this.groundHoles[i].x < -40) {
+                            this.groundHoles.splice(i, 1);
+                        }
+                    }
+                });
+                // Update rocks and check collisions
+                for (let i = this.rocks.length - 1; i >= 0; i--) {
+                    const rock = this.rocks[i];
+                    rock.x -= this.scrollSpeed;
+
+                    if (!this.isDying &&
+                        this.checkBuggyCollision(
+                            100 - 20, this.vehicleY - 8, 40, 16,
+                            rock.x, rock.y, rock.width, rock.height
+                        )) {
+                        this.addExplosion(rock.x + rock.width / 2, rock.y + rock.height / 2);
+                        this.addExplosion(100, this.vehicleY);
+                        this.explodeSound.play();
+                        this.rocks.splice(i, 1);
+                        this.lives--;
+                        this.livesText.setText('LIVES: ' + this.lives);
+
+                        if (this.lives <= 0) {
+                            this.gameOver();
+                        } else {
+                            this.isDying = true;
+                            this.respawnTimer = 100;
+                            this.createExplosionParts(100, this.vehicleY);
+                        }
+                        continue;
+                    }
+
+                    if (rock.x < -20) {
+                        this.rocks.splice(i, 1);
+                    }
+                }
+
+                if (Math.random() < 0.02) {
+                    this.addRock();
+                }
+
+                // Scroll ground
+                for (let i = 0; i < this.groundSegments.length; i++) {
+                    this.groundSegments[i].x -= this.scrollSpeed;
+                }
+
+                if (this.groundSegments[0].x <= -10) {
+                    this.groundSegments.shift();
+                    this.groundSegments.push({
+                        x: this.groundSegments[this.groundSegments.length - 1].x + 10,
+                        y: this.groundY + Math.sin(this.groundSegments.length * 0.5) * 3
+                    });
+                }
+
+                // Update explosions
+                for (let i = this.explosions.length - 1; i >= 0; i--) {
+                    this.explosions[i].frame++;
+                    if (this.explosions[i].frame >= this.explosions[i].maxFrames) {
+                        this.explosions.splice(i, 1);
+                    }
+                }
+
+                // Before drawing vehicle
+                if (!this.isDying) {
+                    this.wheelRotation += this.scrollSpeed * 0.5;
+                    this.vehicleJiggle = Math.sin(this.wheelRotation * 0.5) * 2;
+                }
+                if (this.isDying && this.explosionParts.length > 0) {
+                    this.explosionParts.forEach(part => {
+                        // Update position
+                        part.x += part.vx;
+                        part.y += part.vy;
+                        part.vy += this.explosionGravity;
+                        part.rotation += 0.2;
+
+                        // Remove parts that have fallen off screen
+                        if (part.y > 300) {
+                            this.explosionParts = [];
+                        }
+                    });
+                }
+                // Draw everything
+                this.drawBackground();
+                this.drawGround();
+                this.drawRocks();
+                this.drawVehicle(100, this.vehicleY);
+                this.drawBullets();
+                this.drawUfos();
+                this.drawUfoProjectiles();
+                this.drawExplosions();
+
+                // Update score
+                this.scoreText.setText('SCORE: ' + this.score);
+            }
         }
-        this.score = 0;
-        this.lives = 3;
-        this.isDying = false;
-        this.isGameOver = false;
-        this.respawnTimer = 0;
-        this.vehicleY = this.vehicleBaseY;
-        this.bullets = [];
-        this.rocks = [];
-        this.explosions = [];
-        this.ufos = [];
-        this.ufoProjectiles = [];
-        this.ufoSpawnTimer = 240;
-        this.groundHoles = [];
-        this.generateMountainPoints();
-        this.generateCityElements();
-    }
-
-    preload() {
-        // Load all sounds
-        this.load.audio('bgm', '/sounds/BGM.mp3');
-        this.load.audio('explode', '/sounds/explode.mp3');
-        this.load.audio('ufo_weapon', '/sounds/ufo_weapon.mp3');
-        this.load.audio('vehicle_weapon', '/sounds/vehicle_weapon.mp3');
-        this.load.audio('ending', '/sounds/ending.mp3');
-    }
-    
-    create() {
-        const fullscreenBtn = document.getElementById('fullscreen-btn');
-        const game = this.game.canvas;
-        
-        fullscreenBtn.onclick = () => {
-            if (!document.fullscreenElement) {
-                if (game.requestFullscreen) {
-                    game.requestFullscreen();
-                }
-            } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                }
+        const config = {
+            type: Phaser.AUTO,
+            width: 400,
+            height: 300,
+            backgroundColor: '#000000',
+            scene: GameScene,
+            scale: {
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH
             }
         };
 
-        // Instructions text
-        this.add.text(200, 35, '[SPACE = JUMP, ENTER = FIRE]', {
-            fill: '#00de47',
-            fontSize: '12px',
-            fontFamily: 'monospace'
-        }).setOrigin(0.5);
-
-        this.scoreText = this.add.text(16, 8, 'SCORE: ' + this.score, {
-            fill: '#00de47',
-            fontSize: '22px',
-            fontFamily: 'monospace'
-        });
-
-        this.livesText = this.add.text(280, 8, 'LIVES: ' + this.lives, {
-            fill: '#00de47',
-            fontSize: '22px',
-            fontFamily: 'monospace'
-        });
-
-        // Initialize graphics objects
-        this.backgroundMountains = this.add.graphics();
-        this.backgroundCity = this.add.graphics();
-        this.ground = this.add.graphics();
-        this.vehicle = this.add.graphics();
-        this.bulletsGraphics = this.add.graphics();
-        this.rocksGraphics = this.add.graphics();
-        this.explosionsGraphics = this.add.graphics();
-        this.ufosGraphics = this.add.graphics();
-        this.ufoProjectilesGraphics = this.add.graphics();
-
-        this.groundSegments = [];
-        for (let i = 0; i < 41; i++) {
-            this.groundSegments.push({
-                x: i * 10,
-                y: this.groundY + Math.sin(i * 0.5) * 3
-            });
-        }
-
-        // Create sound objects
-        this.bgm = this.sound.add('bgm', { loop: true });
-        this.explodeSound = this.sound.add('explode');
-        this.ufoWeaponSound = this.sound.add('ufo_weapon');
-        this.vehicleWeaponSound = this.sound.add('vehicle_weapon');
-        this.endingSound = this.sound.add('ending');
-
-        // Set volumes
-        this.bgm.setVolume(0.3);         // Background music lower
-        this.explodeSound.setVolume(0.4);
-        this.ufoWeaponSound.setVolume(0.4);
-        this.vehicleWeaponSound.setVolume(0.4);
-        this.endingSound.setVolume(0.5);
-        
-        // Start background music
-        this.bgm.play();
-
-        // Mobile controls
-        this.setupMobileControls();
-        
-        // Keyboard controls
-        this.setupKeyboardControls();
-    }
-
-    setupMobileControls() {
-        // Jump button
-        this.jumpBtn = this.add.graphics();
-        this.jumpBtn.lineStyle(2, 0x00de47);
-        this.jumpBtn.strokeCircle(100, 270, 30);
-        
-        // Fire button
-        this.fireBtn = this.add.graphics();
-        this.fireBtn.lineStyle(2, 0x00de47);
-        this.fireBtn.strokeRect(250, 240, 60, 60);
-        
-        // Button labels
-        this.add.text(100, 270, 'JUMP', {
-            fill: '#ffde47',
-            fontSize: '12px'
-        }).setOrigin(0.5);
-        
-        this.add.text(280, 270, 'FIRE', {
-            fill: '#ffde47',
-            fontSize: '12px'
-        }).setOrigin(0.5);
-
-        // Make buttons interactive
-        this.jumpBtn.setInteractive(
-            new Phaser.Geom.Circle(100, 270, 30),
-            Phaser.Geom.Circle.Contains
-        );
-        
-        this.fireBtn.setInteractive(
-            new Phaser.Geom.Rectangle(250, 240, 60, 60),
-            Phaser.Geom.Rectangle.Contains
-        );
-
-        this.jumpBtn.on('pointerdown', () => {
-            if (!this.isDying && !this.isJumping) {
-                this.isJumping = true;
-                this.jumpVelocity = -this.jumpSpeed;
-            }
-        });
-        
-        this.fireBtn.on('pointerdown', () => {
-            if (!this.isDying) {
-                this.shoot();
-            }
-        });
-    }
-
-    setupKeyboardControls() {
-        this.input.keyboard.on('keydown-SPACE', () => {
-            if (!this.isDying && !this.isJumping) {
-                this.isJumping = true;
-                this.jumpVelocity = -this.jumpSpeed;
-            }
-        });
-
-        this.input.keyboard.on('keydown-ENTER', () => {
-            if (!this.isDying) {
-                this.shoot();
-            }
-        });
-    }
-    generateMountainPoints() {
-        this.mountainPoints = [];
-        let x = 0;
-        while (x < 800) {
-            const height = 50 + Math.random() * 50;
-            this.mountainPoints.push({
-                x: x,
-                y: 150 - height
-            });
-            x += 5 + Math.random() * 14;
-        }
-    }
-
-    generateCityElements() {
-        this.cityElements = [];
-        let x = 0;
-        while (x < 800) {
-            const height = 30 + Math.random() * 40;
-            const width = 15 + Math.random() * 20;
-            this.cityElements.push({
-                x: x,
-                y: this.groundY - height,
-                width: width,
-                height: height,
-                type: Math.floor(Math.random() * 3)
-            });
-            x += width + 10 + Math.random() * 20;
-        }
-    }
-
-    drawBackground() {
-        // Draw gradient sky
-        /*
-        const gradient = this.add.graphics();
-        gradient.clear();
-        for (let y = 0; y < 150; y++) {
-            const ratio = y / 150;
-            const color = Phaser.Display.Color.Interpolate.ColorWithColor(
-                Phaser.Display.Color.ValueToColor(this.backgroundColor1),
-                Phaser.Display.Color.ValueToColor(this.backgroundColor2),
-                150,
-                y
-            );
-            gradient.lineStyle(1, color, 1);
-            gradient.lineBetween(0, y, 400, y);
-        }
-        */
-        // Draw mountains
-        this.backgroundMountains.clear();
-        this.backgroundMountains.lineStyle(2, 0x0000de);
-        this.backgroundMountains.beginPath();
-        this.mountainPoints.forEach((point, i) => {
-            if (i === 0) {
-                this.backgroundMountains.moveTo(point.x, 300);
-            }
-            this.backgroundMountains.lineTo(point.x, point.y);
-            if (i === this.mountainPoints.length - 1) {
-                this.backgroundMountains.lineTo(point.x, 300);
-            }
-        });
-        this.backgroundMountains.closePath();
-        this.backgroundMountains.fillStyle(0x009797, 1);
-        this.backgroundMountains.fill();
-        this.backgroundMountains.strokePath();
-
-        // Draw city
-        this.backgroundCity.clear();
-        this.backgroundCity.lineStyle(2, 0xffde47);
-        this.backgroundCity.fillStyle(0x00de47, 1);
-        this.cityElements.forEach(building => {
-            // Draw wider platform base
-            this.backgroundCity.fillRect(
-                building.x - 20, // Extend 20px left
-                this.groundY - 5,
-                building.width + 40, // Extend 20px right
-                45 // Extend below ground level
-            );
-        });
-        // Then draw all buildings on top
-        this.cityElements.forEach(building => {
-            switch(building.type) {
-                case 0:
-                    this.drawBuilding(building);
-                    break;
-                case 1:
-                    this.drawDomedBuilding(building);
-                    break;
-                case 2:
-                    this.drawAntennaBuilding(building);
-                    break;
-            }
-        });    
-    }
-
-    drawBuilding(building) {
-        const baseWidth = building.width;
-        const baseHeight = building.height;
-        
-        // Draw base structure
-        this.backgroundCity.fillStyle(0x00de47, 1);
-        this.backgroundCity.fillRect(building.x, building.y, baseWidth, baseHeight);
-        
-        // Draw windows - two columns
-        this.backgroundCity.lineStyle(1, 0x000000);
-        const windowRows = 4;
-        const windowCols = 2;
-        const windowWidth = baseWidth / (windowCols + 1);
-        const windowHeight = baseHeight / (windowRows + 1);
-        
-        for (let row = 0; row < windowRows; row++) {
-            for (let col = 0; col < windowCols; col++) {
-                const windowX = building.x + (col + 1) * (baseWidth / (windowCols + 1)) - windowWidth/2;
-                const windowY = building.y + (row + 1) * (baseHeight / (windowRows + 1)) - windowHeight/2;
-                this.backgroundCity.strokeRect(windowX, windowY, windowWidth, windowHeight);
-            }
-        }
-
-        // Add horizontal lines for detail
-        for (let i = 1; i < 4; i++) {
-            this.backgroundCity.beginPath();
-            this.backgroundCity.moveTo(building.x, building.y + (baseHeight * i/4));
-            this.backgroundCity.lineTo(building.x + baseWidth, building.y + (baseHeight * i/4));
-            this.backgroundCity.strokePath();
-        }
-    }
-
-    drawDomedBuilding(building) {
-        const baseWidth = building.width;
-        const baseHeight = building.height * 0.7;
-        const domeHeight = building.height * 0.3;
-        
-        // Draw base with windows
-        this.backgroundCity.fillStyle(0x00de47, 1);
-        this.backgroundCity.fillRect(building.x, building.y + domeHeight, baseWidth, baseHeight);
-        
-        // Draw windows
-        this.backgroundCity.lineStyle(1, 0x000000);
-        const windowRows = 3;
-        const windowCols = 2;
-        const windowWidth = baseWidth / (windowCols + 1);
-        const windowHeight = baseHeight / (windowRows + 1);
-        
-        for (let row = 0; row < windowRows; row++) {
-            for (let col = 0; col < windowCols; col++) {
-                const windowX = building.x + (col + 1) * (baseWidth / (windowCols + 1)) - windowWidth/2;
-                const windowY = building.y + domeHeight + (row + 1) * (baseHeight / (windowRows + 1)) - windowHeight/2;
-                this.backgroundCity.strokeRect(windowX, windowY, windowWidth, windowHeight);
-            }
-        }
-        
-        // Draw dome with details
-        this.backgroundCity.beginPath();
-        this.backgroundCity.arc(
-            building.x + baseWidth/2,
-            building.y + domeHeight,
-            baseWidth/2,
-            Math.PI, 0, true
-        );
-        this.backgroundCity.fillStyle(0x00de47, 1);
-        this.backgroundCity.fill();
-        this.backgroundCity.strokePath();
-        
-        // Add dome detail lines
-        this.backgroundCity.beginPath();
-        this.backgroundCity.arc(
-            building.x + baseWidth/2,
-            building.y + domeHeight,
-            baseWidth/3,
-            Math.PI, 0, true
-        );
-        this.backgroundCity.strokePath();
-    }
-
-    drawAntennaBuilding(building) {
-        const baseWidth = building.width;
-        const baseHeight = building.height * 0.8;
-        const antennaHeight = building.height * 0.4;
-        
-        // Draw main building
-        this.backgroundCity.fillStyle(0x00de47, 1);
-        this.backgroundCity.fillRect(building.x, building.y + antennaHeight, baseWidth, baseHeight);
-        
-        // Draw windows
-        this.backgroundCity.lineStyle(1, 0x000000);
-        const windowRows = 3;
-        const windowCols = 2;
-        const windowWidth = baseWidth / (windowCols + 1);
-        const windowHeight = baseHeight / (windowRows + 1);
-        
-        for (let row = 0; row < windowRows; row++) {
-            for (let col = 0; col < windowCols; col++) {
-                const windowX = building.x + (col + 1) * (baseWidth / (windowCols + 1)) - windowWidth/2;
-                const windowY = building.y + antennaHeight + (row + 1) * (baseHeight / (windowRows + 1)) - windowHeight/2;
-                this.backgroundCity.strokeRect(windowX, windowY, windowWidth, windowHeight);
-            }
-        }
-        
-        // Draw antenna base
-        const antennaBaseWidth = baseWidth * 0.3;
-        this.backgroundCity.fillRect(
-            building.x + (baseWidth - antennaBaseWidth)/2,
-            building.y + antennaHeight,
-            antennaBaseWidth,
-            antennaHeight * 0.3
-        );
-        
-        // Draw main antenna
-        this.backgroundCity.lineStyle(2, 0x00de47);
-        this.backgroundCity.beginPath();
-        this.backgroundCity.moveTo(building.x + baseWidth/2, building.y + antennaHeight);
-        this.backgroundCity.lineTo(building.x + baseWidth/2, building.y);
-        
-        // Draw antenna cross pieces
-        const crossPieceCount = 3;
-        for (let i = 0; i < crossPieceCount; i++) {
-            const y = building.y + (i * antennaHeight/crossPieceCount);
-            const width = baseWidth * (0.3 - (i * 0.08));
-            this.backgroundCity.moveTo(building.x + baseWidth/2 - width/2, y);
-            this.backgroundCity.lineTo(building.x + baseWidth/2 + width/2, y);
-        }
-        this.backgroundCity.strokePath();
-    }
-    
-    // draws holes
-    drawHoles() {
-        this.ground.lineStyle(3, 0x000000);  // Black outline for holes
-        this.ground.fillStyle(0x000000, 1);  // Black fill for holes
-        
-        this.groundHoles.forEach(hole => {
-            // Draw an oval/ellipse shape for the hole
-            this.ground.beginPath();
-            const holeY = this.groundY + 2; // Slightly below ground level
-            this.ground.ellipse(hole.x, holeY, hole.width/2, 10);
-            this.ground.closePath();
-            this.ground.fill();
-            this.ground.strokePath();
-        });
-    }
-
-    // Modify the drawGround method to be simpler - just draw and fill the lumpy ground
-    drawGround() {
-        this.ground.clear();
-        
-        // First draw the filled ground
-        this.ground.lineStyle(3, this.groundColor);
-        this.ground.beginPath();
-        this.ground.moveTo(0, 300);
-        
-        // Draw the ground line with gaps for holes
-        let currentX = 0;
-        this.groundSegments.forEach((segment, i) => {
-            const lumpY = segment.y + Math.sin(i * 0.5) * 3;
-            
-            // Check if this segment is part of a hole
-            const isHole = this.groundHoles.some(hole => 
-                Math.abs(hole.x - segment.x) < hole.width/2
-            );
-            
-            if (isHole) {
-                // Draw the hole as a dip in the ground line
-                this.ground.lineTo(segment.x, lumpY + 15);
-            } else {
-                this.ground.lineTo(segment.x, lumpY);
-            }
-        });
-        
-        // Complete the ground path
-        this.ground.lineTo(400, 300);
-        this.ground.lineTo(0, 300);
-        
-        // Fill and stroke
-        this.ground.fillStyle(this.groundColor, 1);
-        this.ground.fill();
-        this.ground.strokePath();
-    }
-    addUfo() {
-        this.ufos.push({
-            x: 420,
-            y: 80 + Math.random() * 60,
-            width: 30,
-            height: 15,
-            startY: 80 + Math.random() * 60,
-            angle: 0,
-            shotTimer: 60 + Math.random() * 60,
-            // New properties for movement patterns
-            pattern: Math.floor(Math.random() * 3),
-            patternTimer: 60 + Math.random() * 60,
-            diagonalDirection: Math.random() > 0.5 ? 1 : -1
-        });
-    }
-    ufoShoot(ufo) {
-        this.ufoWeaponSound.play();
-        this.ufoProjectiles.push({
-            x: ufo.x,
-            y: ufo.y + ufo.height/2,
-            vx: -2,  // Add horizontal velocity
-            vy: 4,   // Keep vertical velocity
-            width: 2,  // Make slightly wider
-            height: 6
-        });
-    }
-
-    addExplosion(x, y, color = 0xae3628, scale = 1.5) {
-        this.explosions.push({
-            x: x,
-            y: y,
-            frame: 0,
-            maxFrames: 20,
-            scale: scale,
-            color: color,
-            alpha: 1.0
-        });
-    }
-
-    // Add this method to create explosion parts
-    createExplosionParts(x, y) {
-        // Create three wheels that will bounce away
-        this.explosionParts = [
-            { 
-                x: x - 14, y: y,  // Left wheel
-                vx: -3, vy: this.explosionBounce,
-                rotation: 0
-            },
-            { 
-                x: x, y: y,      // Middle wheel
-                vx: 0, vy: this.explosionBounce * 1.2,
-                rotation: 0
-            },
-            { 
-                x: x + 15, y: y, // Right wheel
-                vx: 3, vy: this.explosionBounce,
-                rotation: 0
-            }
-        ];
-    }
-    // Add this method to draw the explosion parts
-    drawExplosionParts() {
-        this.vehicle.clear();
-        this.vehicle.lineStyle(2, 0x111111);
-
-        this.explosionParts.forEach(part => {
-            // Draw wheel with rotation
-            this.vehicle.strokeCircle(part.x, part.y, 6);
-            this.vehicle.fillStyle(0x222222, 1);
-            this.vehicle.fill();
-
-            // Draw spokes for rotation effect
-            const wheelOffset = 6;
-            
-            // Vertical spoke
-            this.vehicle.beginPath();
-            this.vehicle.moveTo(
-                part.x - wheelOffset * Math.cos(part.rotation),
-                part.y - wheelOffset * Math.sin(part.rotation)
-            );
-            this.vehicle.lineTo(
-                part.x + wheelOffset * Math.cos(part.rotation),
-                part.y + wheelOffset * Math.sin(part.rotation)
-            );
-            this.vehicle.strokePath();
-
-            // Horizontal spoke
-            this.vehicle.beginPath();
-            this.vehicle.moveTo(
-                part.x - wheelOffset * Math.sin(part.rotation),
-                part.y + wheelOffset * Math.cos(part.rotation)
-            );
-            this.vehicle.lineTo(
-                part.x + wheelOffset * Math.sin(part.rotation),
-                part.y - wheelOffset * Math.cos(part.rotation)
-            );
-            this.vehicle.strokePath();
-        });
-    }
-    drawVehicle(x, y) {
-    if (this.isDying && this.explosionParts.length > 0) {
-        this.drawExplosionParts();
-    } else if (!this.isDying) {
-        this.vehicle.clear();
-        this.vehicle.lineStyle(2, 0xde00de);
-        
-        // Main body
-        this.vehicle.fillStyle(0xde00de, 1);
-        this.vehicle.fillRect(x - 18, y - 6, 40, 8);
-        
-        // Top turret
-        this.vehicle.fillStyle(0x00deff, .8);
-        this.vehicle.fillRect(x - 4, y - 14, 12, 8);
-        this.vehicle.strokeRect(x - 5, y - 14, 13, 9)
-        
-        // Front cannon
-        this.vehicle.fillStyle(0xde00de, 1);
-        this.vehicle.fillRect(x + 20, y - 6, 8, 4);
-        
-        // Wheels with rotation
-        this.vehicle.lineStyle(2, 0x111111);
-        
-        // Define wheel positions
-        const wheelPositions = [-14, 0, 15];
-        const wheelOffset = 6;
-        
-        wheelPositions.forEach(pos => {
-            const wheelX = x + pos;
-            const wheelY = y + 4 + this.vehicleJiggle;
-            
-            // Draw spokes for rotation effect
-            this.vehicle.beginPath();
-            this.vehicle.moveTo(
-                wheelX - wheelOffset * Math.cos(this.wheelRotation),
-                wheelY - wheelOffset * Math.sin(this.wheelRotation)
-            );
-            this.vehicle.lineTo(
-                wheelX + wheelOffset * Math.cos(this.wheelRotation),
-                wheelY + wheelOffset * Math.sin(this.wheelRotation)
-            );
-            this.vehicle.strokePath();
-
-            // Draw perpendicular spoke
-            this.vehicle.beginPath();
-            this.vehicle.moveTo(
-                wheelX - wheelOffset * Math.sin(this.wheelRotation),
-                wheelY + wheelOffset * Math.cos(this.wheelRotation)
-            );
-            this.vehicle.lineTo(
-                wheelX + wheelOffset * Math.sin(this.wheelRotation),
-                wheelY - wheelOffset * Math.cos(this.wheelRotation)
-            );
-            this.vehicle.strokePath();
-
-            // Draw wheel circle
-            this.vehicle.strokeCircle(wheelX, wheelY, 6);
-            this.vehicle.fillStyle(0x222222, 1);
-            this.vehicle.fill();
-        });
-    }
-}
-
-    shoot() {
-        this.vehicleWeaponSound.play();
-        this.bullets.push({
-            x: 128,
-            y: this.vehicleY - 4,
-            vx: this.bulletSpeed,
-            vy: 0,
-            type: 'front'
-        });
-
-        this.bullets.push({
-            x: 100,
-            y: this.vehicleY - 16,
-            vx: 0,
-            vy: -this.bulletSpeed,
-            type: 'top'
-        });
-    }
-
-    drawBullets() {
-        this.bulletsGraphics.clear();
-        this.bulletsGraphics.lineStyle(2, 0xaaaaaa);
-
-        this.bullets.forEach(bullet => {
-            if (bullet.type === 'front') {
-                this.bulletsGraphics.strokeRect(bullet.x, bullet.y, 8, 2);
-            } else {
-                this.bulletsGraphics.strokeRect(bullet.x - 1, bullet.y, 2, 8);
-            }
-        });
-    }
-
-    drawUfos() {
-        this.ufosGraphics.clear();
-        this.ufosGraphics.lineStyle(2, 0xaaaaaa);
-        
-        this.ufos.forEach(ufo => {
-            // UFO body
-            this.ufosGraphics.beginPath();
-            this.ufosGraphics.moveTo(ufo.x - ufo.width/2, ufo.y);
-            this.ufosGraphics.lineTo(ufo.x - ufo.width/4, ufo.y - ufo.height/2);
-            this.ufosGraphics.lineTo(ufo.x + ufo.width/4, ufo.y - ufo.height/2);
-            this.ufosGraphics.lineTo(ufo.x + ufo.width/2, ufo.y);
-            this.ufosGraphics.lineTo(ufo.x + ufo.width/4, ufo.y + ufo.height/2);
-            this.ufosGraphics.lineTo(ufo.x - ufo.width/4, ufo.y + ufo.height/2);
-            this.ufosGraphics.closePath();
-            this.ufosGraphics.fillStyle(0x999999, 1);
-            this.ufosGraphics.fill();
-            this.ufosGraphics.strokePath();
-
-            // UFO dome
-            this.ufosGraphics.beginPath();
-            this.ufosGraphics.arc(ufo.x, ufo.y - ufo.height/4, ufo.width/4, 0, Math.PI, true);
-            this.ufosGraphics.fillStyle(0xffde47, 1);
-            this.ufosGraphics.fill();
-            this.ufosGraphics.strokePath();
-        });
-    }
-
-    drawUfoProjectiles() {
-        this.ufoProjectilesGraphics.clear();
-        this.ufoProjectilesGraphics.lineStyle(2, 0xff0000);
-        
-        this.ufoProjectiles.forEach(proj => {
-            this.ufoProjectilesGraphics.strokeRect(proj.x - 1, proj.y, proj.width, proj.height);
-        });
-    }
-
-    // Add this helper function for rocks at the top of the class
-    generateRockShape(rock) {
-        const numPoints = 6;  // Fixed number of points
-        const points = [];
-        const centerX = rock.x + rock.width/2;
-        const centerY = rock.y + rock.height/2;
-        
-        for (let i = 0; i < numPoints; i++) {
-            const angle = (i / numPoints) * Math.PI * 2;
-            const radius = (rock.width / 2) * (0.8 + Math.random() * 0.2);
-            points.push({
-                x: centerX + Math.cos(angle) * radius,
-                y: centerY + Math.sin(angle) * radius * 0.8
-            });
-        }
-        return points;
-    }
-
-    drawRocks() {
-        this.rocksGraphics.clear();
-        
-        this.rocks.forEach(rock => {
-            // Generate points only if they don't exist yet
-            if (!rock.points) {
-                rock.points = this.generateRockShape(rock);
-            }
-            
-            // Draw the rock
-            this.rocksGraphics.lineStyle(2, 0x898074);
-            this.rocksGraphics.beginFill(0x898074);
-            
-            // Draw the shape
-            this.rocksGraphics.beginPath();
-            this.rocksGraphics.moveTo(rock.points[0].x, rock.points[0].y);
-            
-            for (let i = 1; i < rock.points.length; i++) {
-                this.rocksGraphics.lineTo(rock.points[i].x, rock.points[i].y);
-            }
-            
-            this.rocksGraphics.closePath();
-            this.rocksGraphics.fill();
-            this.rocksGraphics.stroke();
-        });
-    }
-
-    drawRocks() {
-        this.rocksGraphics.clear();
-        
-        this.rocks.forEach(rock => {
-            const centerX = rock.x + rock.width/2;
-            const centerY = rock.y + rock.height/2;
-            
-            // Draw main rock shape
-            this.rocksGraphics.lineStyle(2, 0x666666);  // Darker gray outline
-            this.rocksGraphics.fillStyle(0x898074, 1);  // Rock gray color
-            
-            this.rocksGraphics.beginPath();
-            
-            // Create a more natural rock shape with 6-8 points
-            const points = [];
-            const numPoints = 6;
-            const baseRadius = rock.width * 0.4;  // Made smaller
-            
-            for (let i = 0; i < numPoints; i++) {
-                const angle = (i / numPoints) * Math.PI * 2;
-                // Add some randomness to radius for each point
-                const radius = baseRadius * (0.9 + Math.random() * 0.2);
-                points.push({
-                    x: centerX + Math.cos(angle) * radius,
-                    y: centerY + Math.sin(angle) * (radius * 0.8)  // Slightly flatter
-                });
-            }
-            
-            // Draw the shape
-            this.rocksGraphics.moveTo(points[0].x, points[0].y);
-            points.forEach(point => {
-                this.rocksGraphics.lineTo(point.x, point.y);
-            });
-            
-            this.rocksGraphics.closePath();
-            this.rocksGraphics.fillPath();
-            this.rocksGraphics.strokePath();
-            
-            // Add some detail lines for texture
-            this.rocksGraphics.lineStyle(1, 0x666666);
-            this.rocksGraphics.beginPath();
-            this.rocksGraphics.moveTo(points[0].x, points[0].y);
-            this.rocksGraphics.lineTo(points[3].x, points[3].y);
-            this.rocksGraphics.strokePath();
-            
-            // Add another detail line
-            this.rocksGraphics.beginPath();
-            this.rocksGraphics.moveTo(points[1].x, points[1].y);
-            this.rocksGraphics.lineTo(points[4].x, points[4].y);
-            this.rocksGraphics.strokePath();
-            
-            // Remove debug box
-            // this.rocksGraphics.lineStyle(1, 0xff0000);
-            // this.rocksGraphics.strokeRect(rock.x, rock.y, rock.width, rock.height);
-        });
-    }
-
-    drawExplosions() {
-        this.explosionsGraphics.clear();
-
-        this.explosions.forEach(explosion => {
-            const alpha = 1 - (explosion.frame / explosion.maxFrames);
-            this.explosionsGraphics.lineStyle(2, explosion.color || 0xae3628, alpha);
-            const size = 20 * (1 - explosion.frame / explosion.maxFrames) * explosion.scale;
-            const segments = 8;
-            const angleStep = (Math.PI * 2) / segments;
-
-            for (let i = 0; i < segments; i++) {
-                const angle = i * angleStep;
-                const x1 = explosion.x + Math.cos(angle) * size;
-                const y1 = explosion.y + Math.sin(angle) * size;
-                const x2 = explosion.x + Math.cos(angle + angleStep/2) * (size * 0.5);
-                const y2 = explosion.y + Math.sin(angle + angleStep/2) * (size * 0.5);
-                
-                this.explosionsGraphics.beginPath();
-                this.explosionsGraphics.moveTo(x1, y1);
-                this.explosionsGraphics.lineTo(x2, y2);
-                this.explosionsGraphics.strokePath();
-            }
-        });
-    }
-
-    addRock() {
-        if (Math.random() < 0.3 && this.rocks.length < 3) {
-            const rockX = 420;
-            const isHoleAtPosition = this.groundHoles.some(hole => 
-                Math.abs(hole.x - rockX) < hole.width/2
-            );
-            
-            if (!isHoleAtPosition) {
-                const rock = {
-                    x: rockX,
-                    y: this.groundY - 18,
-                    width: 25,
-                    height: 25
-                };
-                rock.points = this.generateRockShape(rock);
-                this.rocks.push(rock);
-            }
-        }
-    }
-
-    gameOver() {
-        this.isGameOver = true;
-        this.bgm.stop();  // Stop background music
-        this.endingSound.play();  // Play ending sound
-        this.add.text(200, 150, 'GAME OVER', {
-            fill: '#000000',
-            fontSize: '32px',
-            fontFamily: 'monospace'
-        }).setOrigin(0.5);
-
-        const restartBtn = this.add.graphics();
-        restartBtn.lineStyle(2, 0x000000);
-        restartBtn.strokeRect(140, 220, 100, 40);
-
-        this.add.text(190, 240, 'RESTART', {
-            fill: '#000000',
-            fontSize: '16px'
-        }).setOrigin(0.5);
-
-        restartBtn.setInteractive(
-            new Phaser.Geom.Rectangle(150, 220, 100, 40),
-            Phaser.Geom.Rectangle.Contains
-        );
-
-        restartBtn.on('pointerdown', () => {
-            this.init();
-            this.scene.restart();
-        });
-    }
-
-    checkBuggyCollision(x1, y1, w1, h1, x2, y2, w2, h2) {
-        return Math.abs((x1 + w1/2) - (x2 + w2/2)) < (w1 + w2)/2 &&
-               Math.abs((y1 + h1/2) - (y2 + h2/2)) < (h1 + h2)/2;
-    }
-
-    update() {
-    if (this.isGameOver) return;
-
-    // Randomly add new holes (with lower frequency)
-    if (Math.random() < 0.0005) { // Much lower chance to spawn holes
-        this.groundHoles.push({
-            x: 420, // Start off-screen
-            width: 50,  // Make them wider
-            active: true // Flag to track if hole can cause damage
-        });
-    }  
-
-    if (this.isDying) {
-        if (this.respawnTimer > 0) {
-            this.respawnTimer--;
-            if (this.respawnTimer <= 0) {
-                this.isDying = false;
-                this.vehicleY = this.vehicleBaseY;
-                this.isJumping = false;
-                this.jumpVelocity = 0;
-            }
-        }
-    } else {
-        if (this.isJumping) {
-            this.jumpVelocity += this.gravity;
-            this.vehicleY += this.jumpVelocity;
-
-            if (this.vehicleY >= this.vehicleBaseY) {
-                this.vehicleY = this.vehicleBaseY;
-                this.isJumping = false;
-                this.jumpVelocity = 0;
-            }
-        }
-
-        // Check if buggy is over a hole
-        if (!this.isDying && !this.isJumping) {
-            const buggyX = 100;  // Center of the buggy
-            const isOverHole = this.groundHoles.some(hole => {
-                if (!hole.active) return false; // Skip inactive holes
-                const holeStart = hole.x - hole.width/2;
-                const holeEnd = hole.x + hole.width/2;
-                const isOver = buggyX > holeStart && buggyX < holeEnd;
-                if (isOver) {
-                    hole.active = false; // Prevent multiple collisions with same hole
-                    return true;
-                }
-                return false;
-            });
-            
-            if (isOverHole) {
-                this.addExplosion(100, this.vehicleY);
-                this.explodeSound.play();
-                this.lives--;
-                this.livesText.setText('LIVES: ' + this.lives);
-                
-                if (this.lives <= 0) {
-                    this.gameOver();
-                } else {
-                    this.isDying = true;
-                    this.respawnTimer = 100;
-                    // Make the buggy fall visibly
-                    this.vehicleY += 30;
-                }
-            }
-        }
-
-        // Check UFO collision with buggy
-        this.ufos.forEach((ufo, i) => {
-            if (this.checkBuggyCollision(
-                100 - 20, this.vehicleY - 8, 40, 16,
-                ufo.x - ufo.width/2, ufo.y - ufo.height/2, ufo.width, ufo.height
-            )) {
-                this.addExplosion(ufo.x, ufo.y, 0xff0000);
-                this.addExplosion(100, this.vehicleY);
-                this.explodeSound.play();
-                this.ufos.splice(i, 1);
-                this.lives--;
-                this.livesText.setText('LIVES: ' + this.lives);
-                
-                if (this.lives <= 0) {
-                    this.gameOver();
-                } else {
-                    this.isDying = true;
-                    this.respawnTimer = 100;
-                    this.createExplosionParts(100, this.vehicleY);
-                }
-            }
-        });
-    }
-    
-
-        // Update UFOs
-        this.ufoSpawnTimer--;
-        if (this.ufoSpawnTimer <= 0) {
-            this.addUfo();
-            this.ufoSpawnTimer = 380;
-        }
-
-        // Update UFO positions and shooting
-        for (let i = this.ufos.length - 1; i >= 0; i--) {
-            const ufo = this.ufos[i];
-            ufo.x -= 1.5;
-            ufo.angle += 0.05;
-            ufo.y = ufo.startY + Math.sin(ufo.angle) * 30;
-
-            ufo.shotTimer--;
-            if (ufo.shotTimer <= 0) {
-                this.ufoShoot(ufo);
-                ufo.shotTimer = 220 + Math.random() * 60;
-            }
-
-            if (ufo.x < -30) {
-                this.ufos.splice(i, 1);
-            }
-        }
-
-        // Update bullets and check collisions
-        for (let j = this.bullets.length - 1; j >= 0; j--) {
-            const bullet = this.bullets[j];
-            bullet.x += bullet.vx;
-            bullet.y += bullet.vy;
-
-            // Check rocks first
-            for (let k = this.rocks.length - 1; k >= 0; k--) {
-                const rock = this.rocks[k];
-                if (bullet.x >= rock.x && bullet.x <= rock.x + rock.width &&
-                    bullet.y >= rock.y && bullet.y <= rock.y + rock.height) {
-                    this.addExplosion(rock.x + rock.width/2, rock.y + rock.height/2);
-                    this.explodeSound.play();
-                    this.rocks.splice(k, 1);
-                    this.bullets.splice(j, 1);
-                    this.score += 100;
-                    break;
-                }
-            }
-
-            // Then check UFOs
-            for (let i = this.ufos.length - 1; i >= 0; i--) {
-                const ufo = this.ufos[i];
-                if (bullet.x >= ufo.x - ufo.width/2 && 
-                    bullet.x <= ufo.x + ufo.width/2 &&
-                    bullet.y >= ufo.y - ufo.height/2 && 
-                    bullet.y <= ufo.y + ufo.height/2) {
-                    this.addExplosion(ufo.x, ufo.y, 0xff0000);
-                    this.explodeSound.play();
-                    this.ufos.splice(i, 1);
-                    this.bullets.splice(j, 1);
-                    this.score += 200;
-                    break;
-                }
-            }
-
-            // Remove off-screen bullets
-            if (bullet.x > 400 || bullet.x < 0 || bullet.y > 300 || bullet.y < 0) {
-                this.bullets.splice(j, 1);
-            }
-        }
-
-// Update UFOs
-this.ufoSpawnTimer--;
-if (this.ufoSpawnTimer <= 0) {
-    this.addUfo();
-    this.ufoSpawnTimer = 380;
-}
-
-// Update UFO positions and shooting
-this.ufos.forEach((ufo, i) => {
-    // Basic movement
-    ufo.x -= 1.5;
-    
-    // If we don't have a movement pattern, create one
-    if (!ufo.pattern) {
-        ufo.pattern = Math.floor(Math.random() * 3); // 0: wave, 1: straight, 2: diagonal
-        ufo.patternTimer = 60 + Math.random() * 60;
-        ufo.diagonalDirection = Math.random() > 0.5 ? 1 : -1;
-    }
-    
-        // Update pattern timer
-        ufo.patternTimer--;
-            if (ufo.patternTimer <= 0) {
-                ufo.pattern = Math.floor(Math.random() * 3);
-                ufo.patternTimer = 60 + Math.random() * 60;
-                ufo.diagonalDirection = Math.random() > 0.5 ? 1 : -1;
-            }
-            
-            // Apply pattern movement
-            switch(ufo.pattern) {
-                case 0: // Wave
-                    ufo.angle += 0.05 + Math.random() * 0.03;  // Add randomness to wave speed
-                    ufo.y = ufo.startY + Math.sin(ufo.angle) * 40;  // Increased from 30
-                    break;
-                case 1: // Straight
-                    // Add slight wobble even in straight flight
-                    ufo.y += (Math.random() - 0.5) * 0.5;
-                    break;
-                case 2: // Diagonal
-                    ufo.y += ufo.diagonalDirection * (0.5 + Math.random() * 0.5);  // More variable speed
-                    if (ufo.y < 50 || ufo.y > 150) {
-                        ufo.diagonalDirection *= -1;
-                    }
-                    break;
-            }
-
-            // Keep existing shooting logic
-            ufo.shotTimer--;
-            if (ufo.shotTimer <= 0) {
-                this.ufoShoot(ufo);
-                ufo.shotTimer = 120 + Math.random() * 60;
-            }
-
-            // Keep existing off-screen check
-            if (ufo.x < -30) {
-                this.ufos.splice(i, 1);
-            }
-
-
-        // Update UFO projectiles
-        for (let i = this.ufoProjectiles.length - 1; i >= 0; i--) {
-            const proj = this.ufoProjectiles[i];
-            proj.x += proj.vx;  // Move horizontally
-            proj.y += proj.vy;  // Move vertically
-
-            if (!this.isDying &&
-                Math.abs(100 - proj.x) < 20 &&
-                Math.abs(this.vehicleY - proj.y) < 20) {
-                this.addExplosion(100, this.vehicleY, 0xff0000);
-                this.explodeSound.play();
-                this.ufoProjectiles.splice(i, 1);
-                this.lives--;
-                this.livesText.setText('LIVES: ' + this.lives);
-                
-                if (this.lives <= 0) {
-                    this.gameOver();
-                } else {
-                    this.isDying = true;
-                    this.respawnTimer = 100;
-                    this.createExplosionParts(100, this.vehicleY);
-                }
-                continue;
-            }
-
-            if (proj.y > 300 || proj.x < -10) {  // Remove if off screen
-                this.ufoProjectiles.splice(i, 1);
-            }
-        }
-        // Update hole positions and cleanup
-        for (let i = this.groundHoles.length - 1; i >= 0; i--) {
-            this.groundHoles[i].x -= this.scrollSpeed;
-            // Remove holes that are off screen
-            if (this.groundHoles[i].x < -40) {
-                this.groundHoles.splice(i, 1);
-            }
-        }        
-    });      
-        // Update rocks and check collisions
-        for (let i = this.rocks.length - 1; i >= 0; i--) {
-            const rock = this.rocks[i];
-            rock.x -= this.scrollSpeed;
-
-            if (!this.isDying && 
-                this.checkBuggyCollision(
-                    100 - 20, this.vehicleY - 8, 40, 16,
-                    rock.x, rock.y, rock.width, rock.height
-                )) {
-                this.addExplosion(rock.x + rock.width/2, rock.y + rock.height/2);
-                this.addExplosion(100, this.vehicleY);
-                this.explodeSound.play();
-                this.rocks.splice(i, 1);
-                this.lives--;
-                this.livesText.setText('LIVES: ' + this.lives);
-                
-                if (this.lives <= 0) {
-                    this.gameOver();
-                } else {
-                    this.isDying = true;
-                    this.respawnTimer = 100;
-                    this.createExplosionParts(100, this.vehicleY);
-                }
-                continue;
-            }
-
-            if (rock.x < -20) {
-                this.rocks.splice(i, 1);
-            }
-        }
-
-        if (Math.random() < 0.02) {
-            this.addRock();
-        }
-
-        // Scroll ground
-        for (let i = 0; i < this.groundSegments.length; i++) {
-            this.groundSegments[i].x -= this.scrollSpeed;
-        }
-
-        if (this.groundSegments[0].x <= -10) {
-            this.groundSegments.shift();
-            this.groundSegments.push({
-                x: this.groundSegments[this.groundSegments.length - 1].x + 10,
-                y: this.groundY + Math.sin(this.groundSegments.length * 0.5) * 3
-            });
-        }
-
-        // Update explosions
-        for (let i = this.explosions.length - 1; i >= 0; i--) {
-            this.explosions[i].frame++;
-            if (this.explosions[i].frame >= this.explosions[i].maxFrames) {
-                this.explosions.splice(i, 1);
-            }
-        }
-
-        // Before drawing vehicle
-        if (!this.isDying) {
-            this.wheelRotation += this.scrollSpeed * 0.5;
-            this.vehicleJiggle = Math.sin(this.wheelRotation * 0.5) * 2;
-        }
-        if (this.isDying && this.explosionParts.length > 0) {
-            this.explosionParts.forEach(part => {
-                // Update position
-                part.x += part.vx;
-                part.y += part.vy;
-                part.vy += this.explosionGravity;
-                part.rotation += 0.2;
-
-                // Remove parts that have fallen off screen
-                if (part.y > 300) {
-                    this.explosionParts = [];
-                }
-            });
-        }
-        // Draw everything
-        this.drawBackground();
-        this.drawGround();
-        this.drawRocks();
-        this.drawVehicle(100, this.vehicleY);
-        this.drawBullets();
-        this.drawUfos();
-        this.drawUfoProjectiles();
-        this.drawExplosions();
-
-        // Update score
-        this.scoreText.setText('SCORE: ' + this.score);
-    }
-}
-const config = {
-    type: Phaser.AUTO,
-    width: 400,
-    height: 300,
-    backgroundColor: '#000000',
-    scene: GameScene,
-    scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH
-    }
-};
-
-new Phaser.Game(config);
-</script>
+        new Phaser.Game(config);
+    </script>
 </body>
-</html>                
+
+</html>
